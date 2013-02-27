@@ -1,0 +1,23 @@
+*.py[co]
+
+# Packages
+*.egg
+*.egg-info
+dist
+build
+eggs
+parts
+bin
+var
+sdist
+develop-eggs
+.installed.cfg
+
+# Vim files 
+*.swp
+
+# Installer logs
+pip-log.txt
+
+# Test data
+tests/data/tmp/*

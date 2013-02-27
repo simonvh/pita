@@ -1,0 +1,212 @@
+#!/usr/bin/env python
+from solexatools import peak_stats
+from pita.collection import *
+from solexatools.track import SimpleTrack
+from numpy import *
+import sys
+
+gffdata = {
+	"Xenbase":"/home/simon/git/pita/tests/data/xenbase_annotation.gff3"
+}
+
+beddata = {
+	"Cufflinks":"/home/simon/git/pita/tests/data/cufflinks.bed",
+#	"EST":""
+}
+
+#xt_size = 1459634564 
+#MINIMUM_FRACTION_EXPRESSED = 1/3.0
+#MINIMUM_RNASEQ_READS = 10
+
+#TSS_FOUND = "v"
+#TSS_UPSTREAM = "u"
+#TSS_DOWNSTREAM = "a"
+#TSS_NOTFOUND = "x"
+
+#GENE_VALIDATED = "V"
+#GENE_UPDATED = "U"
+#GENE_NEW = "N"
+#GENE_NOTEXPRESSED = "X"
+
+#POLII_FRACTION_UPSTREAM = 0.5
+
+models = Collection()
+for name,fname in gffdata.items():
+	models.add_annotation(fname, "gff3")
+
+for name,fname in beddata.items():
+	models.add_annotation(fname, "bed")
+
+for exon in models.get_exons():
+	sys.stdout.write("%s\t%s\t%s\n" % (exon.chr, exon.start, exon.end))
+
+sys.exit()
+
+# Get RPKM and read count using BAM file
+# Get binary overlap with peaks
+
+
+tmp = open("tmp.exons", "w")
+tmpname = "tmp.exons"
+
+exons = c.get_exons()
+for exon in exons:
+	tmp.write("%s\t%s\t%s\n" % (exon.chr, exon.start, exon.end))
+tmp.flush()
+
+get_k4_peaks(tmpname, k4_peaks)
+
+sys.stderr.write("Determining PolII peak overlap\n")
+pol_peak_num = peak_stats.peak_stats(SimpleTrack(tmpname), SimpleTrack(polII_peaks), peak_stats.tuple_number_formatter, zeroes=True)
+
+#print len(exons), len(result), len(pol_peak_num), len(k4_peak_num)
+sys.stderr.write("Reading RNA-seq data\n")
+result = peak_stats.peak_stats(SimpleTrack(tmpname), SimpleTrack(rnaseq, sorted=True), peak_stats.tuple_number_formatter, zeroes=True)
+
+sys.stderr.write("Calculating RNA-seq statistics\n")
+
+for i, (chr, start, end, num) in enumerate(result):
+	exons = [c.get_exon(chr, int(start), int(end), "+"), c.get_exon(chr, int(start), int(end), "-")]
+	for exon in exons:	
+		if exon:
+			exon.num_rnaseq = float(num)
+			exon.polII = pol_peak_num[i][3] > 0
+
+pos = {}
+t = SimpleTrack(k4_peaks)
+f = t.get_next_feature()
+while f:
+	pos.setdefault(f[0],[]).append((f[1],f[2]))
+	f = t.get_next_feature()
+
+sys.stderr.write("Starting validation\n")
+sys.stderr.write("PolII\n")
+
+all_models = c.get_transcript_clusters()
+transcripts = []
+for ts in all_models:
+	for transcript in ts:
+		transcripts.append(transcript)
+
+high_polII  = {}
+for t in check_polII_at_tss(transcripts):
+	print "%s transcript have polII at tss" % len(t)
+	high_polII[t] = 1
+
+annoname = "xt_%s_%s%s"
+scaffold_count = {}
+
+sys.stderr.write("Validating models\n")
+
+upstream_check = {}
+best_models = {}
+map_models = {}
+alt_tss = {}
+
+for (mstatus, models) in enumerate(all_models):
+	# Give status
+	sys.stderr.write("%s of %s tested (%i)\n" % (mstatus + 1, len(all_models), (mstatus + 1)/ float(len(all_models)) * 100))
+	
+	best_model = None
+	tss_status = None
+	gene_status = None
+
+	# Get all expressed transcripts
+	expressed_models = get_expressed_models(models)
+	print "CHECK: ", models
+	print "EXPRESSED: ", expressed_models
+	if expressed_models:
+		# One or more models is expressed
+		tss_models = get_tss_models(expressed_models)
+		if tss_models:
+			tss_status = TSS_FOUND
+			best_model = get_most_likely_model(tss_models, expression=True)
+			print "TSS FOUND"
+		else:
+			print "TSS not found"
+			tss_status, tss = get_alternative_tss(expressed_models)
+			best_model = get_most_likely_model(expressed_models, expression=True)
+			if tss_status == TSS_UPSTREAM:
+				upstream_check[best_model] = tss
+		
+		print "best model %s" % best_model
+		
+		tss = get_downstream_tss(best_model)
+		#if len(tss) > 1 and tss_status == TSS_NOTFOUND:
+		#	tss_status = TSS_DOWNSTREAM
+		#elif tss:
+		#	tss_status = TSS_MULTIPLE
+		if tss:
+			alt_tss[best_model] = True
+		else:
+			alt_tss[best_model] = False 
+			
+		fm = get_fm(models)
+		if not fm:
+			print "model %s is new" % best_model
+			gene_status = GENE_NEW
+##### UDPATEEEEE #####
+		elif best_model != fm or splice.has_key(best_model):# or estsplice.has_key(best_model):
+			gene_status = GENE_UPDATED
+		else:
+			gene_status = GENE_VALIDATED
+
+	else:
+		# No expression detected, but there is a H3K4me3 peak
+		tss_models = get_tss_models(models)
+		if tss_models:
+			tss_status = TSS_FOUND
+			gene_status = GENE_NOTEXPRESSED
+			best_model = get_most_likely_model(tss_models, expression=False)
+			alt_tss[best_model] = False
+	if gene_status:
+		if get_fm(models):
+			gene_id = "xt_%s_%s%s" % (get_fm(models), gene_status, tss_status)
+		else:
+			gene_id = "xt_%s_%s%s" % (best_model, gene_status, tss_status)
+		
+		#if estsplice.has_key(best_model):
+		#	gene_id += "_EST"
+		
+		print "adding %s (%s) to best_models" % (gene_id, best_model)
+		best_models[best_model] = gene_id
+		map_models[best_model] = models
+
+true_upstream = check_polII_upstream(upstream_check, polII_data)
+for model in upstream_check.keys():
+	if model in true_upstream:
+		#print "%s has upstream! %s" % (model, best_models[model])
+		pass
+	else:
+		if best_models[model].endswith(TSS_UPSTREAM):
+			best_models[model] =  best_models[model][:-1] + TSS_NOTFOUND
+		#if best_models[model].endswith(TSS_MULTIPLE):
+		#	best_models[model] =  best_models[model][:-1] + TSS_DOWNSTREAM
+		#print "%s not upstream! %s" % (model, best_models[model])
+
+print "BEST models", best_models
+out = open("id_mapping.txt", "w")
+print "overlap", c.get_overlapping_transcripts(best_models.keys())
+for cluster in c.get_overlapping_transcripts(best_models.keys()):
+	if len(cluster) > 1:
+		sys.stderr.write("Have to choose:\n")
+		for model in cluster:
+			sys.stderr.write("Option: %s\t%s\n" % (model, best_models[model]))
+		#print "Have to choose"
+		#print "Before", cluster
+		models = get_all_likely_models(cluster, best_models)
+		#print "After", models
+		sys.stderr.write("After exon filter %s\n" % str(models))
+		sys.stderr.write("\n")	
+	else:
+		models = cluster[:]
+	for model in models:
+		if best_models[model][-2] == GENE_NEW:
+			best_models[model] = best_models[model][:-2] + GENE_VALIDATED + best_models[model][-1]
+		
+		if alt_tss[model]:
+			best_models[model] += TSS_DOWNSTREAM
+		
+		print c.to_bed(model, best_models[model])
+		out.write("%s\t%s\n" % (best_models[model], "\t".join(map_models[model])))
+out.close()
