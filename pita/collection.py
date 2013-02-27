@@ -401,4 +401,36 @@ class Collection:
 		#print "OVERLAP", overlap
 		return overlap
 
+	### Overlaps with external files (BAM, bed, etc.) ###
+	def get_read_statistics(self, bamfile, name, span="exon", extend=(0,0)):
+		from fluff.fluffio import get_binned_stats
+		from tempfile import NamedTemporaryFile
 
+		tmp = NamedTemporaryFile()
+		estore = {}
+		for exon in self.get_exons():
+			start = exon.start
+			end = exon.end
+			if exon.strand == "-":
+				start -= extend[1]
+				end += extend[0]
+			else:
+				start -= extend[0]
+				end += extend[1]
+			estore["%s:%s-%s" % (exon.chr, start, end)] = exon
+			tmp.write("%s\t%s\t%s\t%s\t%s\t%s\n" % (
+				exon.chr,
+				start,
+				end,
+				str(exon),
+				0,
+				exon.strand
+			))
+		tmp.flush()
+
+		result = get_binned_stats(tmp.name, bamfile, 1, rpkm=False, rmdup=True, rmrepeats=True)
+		for row in result:
+			vals = row.strip().split("\t")
+			e = "%s:%s-%s" % (vals[0], vals[1], vals[2])
+			c = vals[3]
+			estore[e].stats[name] = c

@@ -40,9 +40,19 @@ for name,fname in beddata.items():
 for exon in models.get_exons():
 	sys.stdout.write("%s\t%s\t%s\n" % (exon.chr, exon.start, exon.end))
 
-sys.exit()
 
 # Get RPKM and read count using BAM file
+bamfile = "/home/simon/git/pita/tests/data/tmp/accepted_hits_sorted.bam"
+models.get_read_statistics(bamfile, name="RNA-seq", span="exon")
+bamfile = "/home/simon/git/pita/tests/data/RNAPII.bam"
+models.get_read_statistics(bamfile, name="RNAPII", span="start", extend=(750,250))
+bamfile = "/home/simon/git/pita/tests/data/H3K4me3.bam"
+models.get_read_statistics(bamfile, name="H3K4me3", span="start", extend=(500,500))
+
+for exon in models.get_exons():
+	print exon, exon.stats
+sys.exit()
+
 # Get binary overlap with peaks
 
 

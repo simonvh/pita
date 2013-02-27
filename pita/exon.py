@@ -10,7 +10,8 @@ class Exon:
 		self.links = {}
 		self.linked = False
 		self.validated = False
-		
+		self.stats = {}
+
 	def __nonzero__(self):
 		return 1
 	
