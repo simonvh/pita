@@ -1,39 +1,32 @@
+from BCBio import GFF
 from pita.collection import *
+import pprint
+import sys
 
-def read_gff(gfffile, format="gtf", collection=None, prefix=None):
-	link = {}
-	if format == "gtf":
-		sep = " "
-		names = ["transcript_id", "name", "featureId"]
-	elif format == "gff3" or format == "gff":
-		sep = "="
-		names = ["Name", "pacid"]
+def _gff_type_iterator(feature, ftype):
+	if feature.type == ftype:
+		yield feature
 	else:
-		raise ValueError, "Unknown format %s" % format
+		for feature in feature.sub_features:
+			for f in _gff_type_iterator(feature, ftype):
+				yield f
 
-	for ln_i,line in enumerate(open(gfffile)):
-		if ln_i % 10000 == 0:
-			print "%s lines..." % ln_i
-		if not line.startswith("#"):
-			vals = line.strip().split("\t")
-			if vals[2] == "exon":
-				params = dict([[y.strip('"') for y in x.strip().split(sep)] for x in vals[8].strip(";").split(";")])
+def read_gff(fname, format="gtf", collection=None, prefix=None):
+	#limits = dict(gff_type = ["mRNA", "exon"])
+	smap = {"1":"+",1:"+","-1":"-",-1:"-"}
+	link = {}
+	for rec in GFF.parse(open(fname)):
+		chrom = rec.id
+		for feature in rec.features:
+			for gene in _gff_type_iterator(feature, 'mRNA'):
+				for exon in [f for f in gene.sub_features if f.type == 'exon']:
+					#print gene.strand, exon.location, gene.id
+					link[gene.id] = link.setdefault(gene.id, 0) + 1
+					start = int(exon.location.start.position) - 1	
+					end = int(exon.location.end.position)
+					strand = smap[exon.strand]
+					collection.add(chrom, start, end, exon.strand, "bla", transcript=gene.id)	
 
-				name = None
-				for x in names:
-					if params.has_key(x):
-						name = params[x]
-						if prefix:
-							name = prefix + name
-			
-				if name:
-					link[name] = link.setdefault(name, 0) + 1
-					start = int(vals[3])
-					if format == "gff" or format == "gff3":
-						start -= 1
-					collection.add(vals[0], start, vals[4], vals[6], "bla", transcript=name)	
-
-	#print link
 	for transcript_id, count in link.items():
 		if count > 0:
 			collection.link_transcript_exons(transcript_id)
