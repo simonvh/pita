@@ -9,12 +9,17 @@ class Collection:
 		self.exon_index = {}
 
 	def add_annotation(self, fname, fformat, prefix=""):
+		sys.stderr.write("Reading %s\n" % fname)
 		c = Collection()
 		if fformat in ["gtf", "gff3"]:
 			c = read_gff(fname, fformat, collection=c, prefix=prefix)
 		elif fformat == "bed":
 			c = read_bed(fname, collection=c, prefix=prefix)
+		sys.stderr.write("Done\n")
+
+		sys.stderr.write("Updating models\n")
 		ret = self.update_with(c)
+		sys.stderr.write("Done\n")
 
 	def delete_left_exons(self, transcript, n):
 		#print "Delete %s exons from the left of %s" % (n, transcript)
@@ -143,26 +148,39 @@ class Collection:
 					exons.append(e)
 			return exons
 	
+	
 	def get_exon(self, chr, start, end, strand=None):
 		if not self.exons.has_key(chr):
 			return None
 
-		for coords, exon in self.exon_index[chr].items():
-			#if strand:
-			#	if coords == (start, end, strand):
-			#		return exon
-			#else:
-			if 1:
-				if coords[0] == start and coords[1] == end:
-					if not strand:
-						return exon
-					elif coords[2] == strand:
-						return exon
+		if self.exon_index[chr].has_key((start, end, strand)):
+			return 	self.exon_index[chr][(start, end, strand)]
+		
+		#for coords, exon in self.exon_index[chr].items():
+		#	#if strand:
+		#	#	if coords == (start, end, strand):
+		#	#		return exon
+		#	#else:
+		#	if 1:
+		#		if coords[0] == start and coords[1] == end:
+		#			if not strand:
+		#				return exon
+		#			elif coords[2] == strand:
+		#				return exon
 	
 	def get_transcript_exons(self, transcript):
 		if self.transcript_exons.has_key(transcript):
 			return sorted(self.transcript_exons[transcript], key=lambda x: x.start)
 		return []
+
+	def get_transcript_start_exon(self, transcript):
+		exons = self.get_transcript_exons(transcript)
+		if len(exons) > 0:
+			if exons[0].strand == "+":
+				return exons[0]
+			else:
+				return exons[1]
+
 
 	def get_transcript(self, exon):
 				
@@ -402,7 +420,7 @@ class Collection:
 		return overlap
 
 	### Overlaps with external files (BAM, bed, etc.) ###
-	def get_read_statistics(self, bamfile, name, span="exon", extend=(0,0)):
+	def get_read_statistics(self, fname, name, span="exon", extend=(0,0)):
 		from fluff.fluffio import get_binned_stats
 		from tempfile import NamedTemporaryFile
 
@@ -417,6 +435,9 @@ class Collection:
 			else:
 				start -= extend[0]
 				end += extend[1]
+			if start < 0:
+				start = 0
+			
 			estore["%s:%s-%s" % (exon.chr, start, end)] = exon
 			tmp.write("%s\t%s\t%s\t%s\t%s\t%s\n" % (
 				exon.chr,
@@ -428,9 +449,13 @@ class Collection:
 			))
 		tmp.flush()
 
-		result = get_binned_stats(tmp.name, bamfile, 1, rpkm=False, rmdup=True, rmrepeats=True)
+		if fname.endswith("bam"):
+			rmrepeats = True
+		else:
+			rmrepeats = False
+		result = get_binned_stats(tmp.name, fname, 1, rpkm=False, rmdup=True, rmrepeats=rmrepeats)
 		for row in result:
 			vals = row.strip().split("\t")
 			e = "%s:%s-%s" % (vals[0], vals[1], vals[2])
-			c = vals[3]
+			c = float(vals[3])
 			estore[e].stats[name] = c

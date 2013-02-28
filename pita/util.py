@@ -3,11 +3,13 @@ from solexatools.track import SimpleTrack
 from tempfile import NamedTemporaryFile
 import sys
 
-def get_expression(exons):
+from pita import config
+
+def get_expression(exons, minreads=10):
 	c = 0
 	for exon in exons:
-		print "EXON %s\t%s " %  (exon, exon.num_rnaseq)
-		if exon.num_rnaseq >= MINIMUM_RNASEQ_READS:
+		sys.stderr.write("EXON %s\t%s \n" %  (exon, exon.stats["RNAseq"]))
+		if exon.stats["RNAseq"] >= minreads:
 			c += 1
 
 	return float(c) / len(exons)
@@ -137,15 +139,15 @@ def get_keys_of_lowest_values(d, filter=None):
 	min = sorted([d[x] for x in d.keys() if x in filter])[0]
 	return [x for x in d.keys() if (d[x] == min) and ((not filter) or x in filter)]
 
-def get_all_likely_models(models, status_id):
+def get_all_likely_models(c, models, status_id):
 	if len(models) <= 1:
 		return models
 
 	overlap = []
 	for i, model1 in enumerate(models):
 		for model2 in models[i + 1:]:
-			sys.stderr.write("%s\t%s\t%s\n" % ( model1, model2, get_exon_overlap(model1, model2)))
-			o1,o2 = get_exon_overlap(model1, model2)
+			sys.stderr.write("%s\t%s\t%s\n" % ( model1, model2, get_exon_overlap(c, model1, model2)))
+			o1,o2 = get_exon_overlap(c, model1, model2)
 			overlap.append([o1, model1, model2])
 			overlap.append([o2, model2, model1])
 
@@ -175,7 +177,7 @@ def get_all_likely_models(models, status_id):
 	#	return models
 	return filt_models
 
-def get_most_likely_model(models, expression=True):
+def get_most_likely_model(c, models, expression=True):
 	""" Get the most likely model, based on expression, length, number of exons, etc"""
 	# First, easy case: only one model
 	if len(models) == 1:
@@ -184,7 +186,7 @@ def get_most_likely_model(models, expression=True):
 	if len(models) == 0:
 		raise ValueError, "Length of models should not be 0"
 
-	k4_models = [model for model in models if first_exon_has_k4(model)]
+	k4_models = [model for model in models if first_exon_has_k4(c, model)]
 	if len(k4_models) == 1:
 		return k4_models[0]
 	elif len(k4_models) > 1:
@@ -220,7 +222,7 @@ def get_most_likely_model(models, expression=True):
 	
 	return likely_models[0]
 
-def get_exon_overlap(t1, t2):
+def get_exon_overlap(c, t1, t2):
 	exons1 = c.get_transcript_exons(t1)
 	exons2 = c.get_transcript_exons(t2)
 	
@@ -243,7 +245,7 @@ def get_exon_overlap(t1, t2):
 	return overlap / l1, overlap / l2
 
 
-def get_alternative_tss(models):
+def get_alternative_tss(c, models, pos):
 	#print "Check upstream TSS of %s" % str(models)
 	for model in models:
 		#if model == "ENSXETT00000034743":
@@ -293,12 +295,12 @@ def get_alternative_tss(models):
 		#print
 		if extra:
 			#return "Should be checked, xtra: %s:%s-%s gene: %s:%s-%s" % (extra[0], extra[1], extra[2], gene[0], gene[1], gene[2])
-			return TSS_UPSTREAM, (extra[0], extra[1], extra[2])
+			return config.TSS_UPSTREAM, (extra[0], extra[1], extra[2])
 		
-	return TSS_NOTFOUND, None
+	return config.TSS_NOTFOUND, None
 
 
-def get_downstream_tss(transcript):
+def get_downstream_tss(c, transcript):
 	tss = []
 	s_exons = c.get_transcript_exons(transcript)
 
@@ -319,54 +321,21 @@ def get_downstream_tss(transcript):
 	return tss
 
 
-def get_expressed_models(models):
-	print "GET expressed models"
+def get_expressed_models(c, models, fraction=1/3.0, minreads=10):
+	sys.stderr.write("GET expressed models\n")
 	for t in models:
-		print "%s\t%s" % (t,  get_expression(c.get_transcript_exons(t)))
-	return [transcript for transcript in models if get_expression(c.get_transcript_exons(transcript)) >= MINIMUM_FRACTION_EXPRESSED]
+		sys.stderr.write("%s\t%s\n" % (t,  get_expression(c.get_transcript_exons(t))))
+	return [transcript for transcript in models if get_expression(c.get_transcript_exons(transcript), minreads) >= fraction]
 
-def first_exon_has_k4(transcript):
-	s_exons = c.get_transcript_exons(transcript)
-	if s_exons[0].strand == "+":
-		#print "check k4 %s\t%s" % (transcript, str(s_exons[0].k4))
-		return s_exons[0].k4
-	else:
-		#print "check k4 %s\t%s" % (transcript, str(s_exons[-1].k4))
-		return s_exons[-1].k4
+def first_exon_has_k4(c, transcript):
+	start_exon = c.get_transcript_start_exon(transcript)
+	return start_exon.stats["H3K4me3.peaks"] > 0
 
-def get_tss_models(models):
-	return [transcript for transcript in models if first_exon_has_k4(transcript)]
+def get_tss_models(c, models):
+	return [transcript for transcript in models if first_exon_has_k4(c,  transcript)]
 
-#def get_fm(models):
-#	for model in models:
-#		try:
-#			int(model)
-#			return model
-#		except:
-#			pass
 def get_fm(models):
 	for model in models:
 		if model.startswith("xb_"):
 			return model
 
-def get_k4_peaks(tmpname, k4_peaks):
-	sys.stderr.write("Determining H3K4me3 peak overlap\n")
-	exon_lines = []
-	s =  SimpleTrack(tmpname)
-	f = s.get_next_feature()
-	while f:
-		exon_lines.append(f[:3])
-		f = s.get_next_feature()
-		
-	sys.stderr.write("Determining H3K4me3 peak overlap (1)\n")
-	result = peak_stats.peak_stats(SimpleTrack(tmpname), SimpleTrack(k4_peaks), peak_stats.tuple_all_formatter, zeroes=True)
-	sys.stderr.write("Determining H3K4me3 peak overlap (2)\n")
-	
-	for row,exon in zip(result, exon_lines):
-		chr,start,end = exon
-		start,end = int(start),int(end)
-		for strand in ["+", "-"]:
-			exon = c.get_exon(chr, start, end, strand)
-			if exon:
-				exon.k4 = row[:]	
-	sys.stderr.write("Determining H3K4me3 peak overlap (done)\n")
