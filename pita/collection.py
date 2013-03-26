@@ -7,6 +7,8 @@ class Collection:
 		self.exons = {}
 		self.transcript_exons = {}
 		self.exon_index = {}
+		
+
 
 	def add_annotation(self, fname, fformat, prefix=""):
 		sys.stderr.write("Reading %s\n" % fname)
