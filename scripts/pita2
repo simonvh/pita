@@ -1,0 +1,55 @@
+from pita.collection2 import Collection
+from pita.io import read_gff_transcripts, read_bed_transcripts
+import os
+
+base = "/home/simon/prj/laevis/annotation/pita_test/Scaffold55551"
+
+gffdata = {
+#    "cufflinks": os.path.join(base, "cufflinks.55551.gtf"),
+}
+
+#base = "/home/simon/prj/laevis/annotation/gene_model_blat/"
+
+beddata = {
+    "oktoberfest": os.path.join(base, "XENLA_2012oct_cdna_longest.fa.gmap.out.bed"),
+    "JGI": os.path.join(base, "Xenla_6.0_JGI_Gene_Models.fasta.gmap.out.bed"),
+    "mRNA": os.path.join(base, "xlaevisMRNA.fasta.gmap.out.bed"),
+    "EST": os.path.join(base, "xlaevisEST.fasta.gmap.out.bed"),
+}
+
+mc = Collection()
+for name,fname in gffdata.items():
+    for name, source, exons in read_gff_transcripts(fname):
+        mc.add_transcript(name, source, exons)
+
+for name,fname in beddata.items():
+    for name, source, exons in read_bed_transcripts(fname):
+        mc.add_transcript(name, source, exons)
+
+
+#for t in mc.get_all_transcripts():
+#    print t
+
+data = [
+    ["RNAseq", os.path.join(base, "RNAseq_Scaffold55551.quick.bam"), "exon", (0,0)],
+    ["H3K4me3", os.path.join(base, "H3K4me3_Scaffold55551.quick.bam"), "start", (500,500)],
+]
+
+for name, fname, span, extend in data:
+    mc.get_read_statistics(fname, name=name, span=span, extend=extend)
+
+for i, cluster in enumerate(mc.get_all_transcript_clusters()):
+    
+    #print "Cluster {0}".format(i + 1)
+    m = mc.max_weight(cluster, {"RNAseq": 1, "H3K4me3":2}, {"RNAseq": "all", "H3K4me3":"first"})
+    exons = m
+    chrom = exons[0].chr
+    chromStart = exons[0].start
+    chromEnd = exons[-1].end
+    name = "{0}:{1}-{2}".format(chrom, chromStart, chromEnd)
+    sizes = ",".join([str(exon.end - exon.start) for exon in exons]) + ","
+    starts = ",".join([str(exon.start - chromStart) for exon in exons]) + ","
+    print "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s" % (chrom, chromStart, chromEnd, name, 600, exons[0].strand, chromStart, chromEnd, 0, len(exons), sizes, starts)
+
+    #for t in cluster:
+    #    print len(t)
