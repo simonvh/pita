@@ -16,7 +16,7 @@ setup (name = 'pita',
 			'pita'
 		],
 		scripts=[
-			"scripts/pita",
+#			"scripts/pita",
 		],
 		data_files=[]
 )
