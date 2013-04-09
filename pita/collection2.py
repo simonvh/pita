@@ -207,20 +207,25 @@ class Collection:
             e = "%s:%s-%s" % (vals[0], vals[1], vals[2])
             c = float(vals[3])
             estore[e].stats[name] = c
-    
+   
+    def get_weight(self, transcript, identifier, idtype):
+        
+        if idtype == "all":
+            return sum([exon.stats.setdefault(identifier, 0) for exon in transcript])
+        elif idtype == "first":
+            if transcript[0].strand == "+":
+                return transcript[0].stats.setdefault(identifier,0)
+            else:
+                return transcript[-1].stats.setdefault(identifier,0)
+
+
     def max_weight(self, transcripts, identifier_weight, idtype):
         w = array([0] * len(transcripts))
         pseudo = 1e-10
         for identifier,weight in identifier_weight.items():
             idw = []
             for transcript in transcripts:
-                if idtype[identifier] == "all":
-                    idw.append(pseudo + sum([exon.stats.setdefault(identifier, 0) for exon in transcript]))
-                elif idtype[identifier] == "first":
-                    if transcript[0].strand == "+":
-                        idw.append(pseudo + transcript[0].stats.setdefault(identifier,0))
-                    else:
-                        idw.append(pseudo + transcript[-1].stats.setdefault(identifier,0))
+                idw.append(pseudo + self.get_weight(transcript, identifier, idtype[identifier]))
 
             idw = array(idw)
             idw = idw / max(idw) * weight
