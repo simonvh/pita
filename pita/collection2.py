@@ -44,7 +44,7 @@ class Collection:
             return exons
 
     def add_transcript(self, name, source, exons):
-        sys.stderr.write("Adding {0} with {1} exons\n".format(name, len(exons)))
+        #sys.stderr.write("Adding {0} with {1} exons\n".format(name, len(exons)))
         # First add all exons
         exons = [self.add_exon(*exon) for exon in exons]
         [exon.add_evidence(name) for exon in exons]
@@ -207,7 +207,7 @@ class Collection:
             e = "%s:%s-%s" % (vals[0], vals[1], vals[2])
             c = float(vals[3])
             estore[e].stats[name] = c
-   
+
     def get_weight(self, transcript, identifier, idtype):
         
         if idtype == "all":
@@ -229,6 +229,6 @@ class Collection:
 
             idw = array(idw)
             idw = idw / max(idw) * weight
-            sys.stderr.write("Adding {0}\n".format(idw))
+            #sys.stderr.write("Adding {0}\n".format(idw))
             w = w + idw
         return transcripts[argmax(w)]
