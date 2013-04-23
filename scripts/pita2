@@ -1,55 +1,138 @@
+#!/usr/bin/env python
 from pita.collection2 import Collection
 from pita.io import read_gff_transcripts, read_bed_transcripts
 import os
+import sys
 
+#base = "/home/simon/prj/laevis/annotation/pita_test2"
 base = "/home/simon/prj/laevis/annotation/pita_test/Scaffold55551"
 
 gffdata = {
-#    "cufflinks": os.path.join(base, "cufflinks.55551.gtf"),
 }
-
-#base = "/home/simon/prj/laevis/annotation/gene_model_blat/"
 
 beddata = {
     "oktoberfest": os.path.join(base, "XENLA_2012oct_cdna_longest.fa.gmap.out.bed"),
     "JGI": os.path.join(base, "Xenla_6.0_JGI_Gene_Models.fasta.gmap.out.bed"),
     "mRNA": os.path.join(base, "xlaevisMRNA.fasta.gmap.out.bed"),
-    "EST": os.path.join(base, "xlaevisEST.fasta.gmap.out.bed"),
 }
+
+data = [
+#    ["RNAseq", "/mnt/MD3000v2/simon/prj/laevis/annotation/RNAseq.merged.bam", "exon", (0,0)],
+    ["RNAseq", os.path.join(base, "RNAseq_Scaffold55551.quick.bam"), "exon", (0,0)],
+#    ["H3K4me3", "//mnt/MD3000v2/simon/prj/laevis/data/all/H3K4me3_stage14_300_paired_norm_sorted.bam", "start", (500,500)],
+    ["H3K4me3", os.path.join(base, "H3K4me3_Scaffold55551.quick.bam"), "start", (500,500)],
+#    ["H3K4me3.peaks", os.path.join(base, "H3K4me3.C0MJ4ACXX_4_peaks.bed"), "start", (500,500)],
+    ["H3K4me3.peaks", os.path.join(base, "H3K4me3_peaks.bed"), "start", (500,500)],
+]
+
 
 mc = Collection()
 for name,fname in gffdata.items():
-    for name, source, exons in read_gff_transcripts(fname):
-        mc.add_transcript(name, source, exons)
+    for tname, source, exons in read_gff_transcripts(fname):
+        mc.add_transcript("{0}:{1}".format(name,tname), source, exons)
 
 for name,fname in beddata.items():
-    for name, source, exons in read_bed_transcripts(fname):
-        mc.add_transcript(name, source, exons)
-
-
-#for t in mc.get_all_transcripts():
-#    print t
-
-data = [
-    ["RNAseq", os.path.join(base, "RNAseq_Scaffold55551.quick.bam"), "exon", (0,0)],
-    ["H3K4me3", os.path.join(base, "H3K4me3_Scaffold55551.quick.bam"), "start", (500,500)],
-]
+    for tname, source, exons in read_bed_transcripts(fname):
+        mc.add_transcript("{0}:{1}".format(name,tname), source, exons)
 
 for name, fname, span, extend in data:
     mc.get_read_statistics(fname, name=name, span=span, extend=extend)
 
+def get_updated_exons(model, name):
+    strand = model[0].strand
+    n = 0
+    u5 = 0
+    u3 = 0
+    for e in best_exons:
+        if name in [x.split(":")[0] for x in e.evidence]:
+            break
+        n += 1
+
+    if strand == "-":
+        u3 = n
+    else:
+        u5 = n 
+     
+    n = 0
+    for e in best_exons[::-1]:
+        if name in [x.split(":")[0] for x in e.evidence]:
+            break
+        n += 1
+
+    if strand == "-":
+        u5 = n
+    else:
+        u3 = n
+    
+    return u5,u3
+
+
+log_header = "Model\tNr. Exons\tExons in best model\tExons in other models\tUpdated 5'\tUpdated 3'\tOriginal models\n"
+logs = {}
+for name in beddata.keys() + gffdata.keys():
+    logs[name] = open("pita.{0}.log".format(name), "w")
+    logs[name].write(log_header)
+
+print 'track name="pita_test"'
 for i, cluster in enumerate(mc.get_all_transcript_clusters()):
     
-    #print "Cluster {0}".format(i + 1)
     m = mc.max_weight(cluster, {"RNAseq": 1, "H3K4me3":2}, {"RNAseq": "all", "H3K4me3":"first"})
     exons = m
     chrom = exons[0].chr
     chromStart = exons[0].start
     chromEnd = exons[-1].end
-    name = "{0}:{1}-{2}".format(chrom, chromStart, chromEnd)
+    genename = "{0}:{1}-{2}_".format(chrom, chromStart, chromEnd)
+    if mc.get_weight(m, "H3K4me3.peaks", "first") > 0:
+        genename += "V"
+    else:
+        genename += "X"
+   
+    x = mc.get_weight(m, "RNAseq", "all") / (sum([e.end - e.start for e in m]) / 1000.0)
+    if x > 5:
+        genename += "V"
+    else:
+        genename += "X"
+
+    
+    best_exons = [e for e in m]
+    best_ev = {}
+    for e in best_exons:
+        for ev in set([x.split(":")[0] for x in e.evidence]):
+            best_ev[ev] = best_ev.setdefault(ev, 0) + 1
+    other_exons = []
+    other_ev = {}
+    for o in cluster:
+        for e in o:
+            if not (e in best_exons or e in other_exons):
+                other_exons.append(e)
+                for ev in set([x.split(":")[0] for x in e.evidence]):
+                    other_ev[ev] = other_ev.setdefault(ev, 0) + 1
+    
+    for name in beddata.keys() + gffdata.keys():
+        ev = []
+        for e in best_exons + other_exons:
+            for evidence in e.evidence:
+                ev.append(evidence.split(":"))
+        orig_models = {}
+        for (origin,orig_name) in ev:
+            if origin == name:
+                orig_models[orig_name] = orig_models.setdefault(orig_name, 0) + 1
+
+        u5, u3 = get_updated_exons(m, name)
+        logs[name].write("{0}\t{1}\t{2}\t{3}\t{4}\t{5}\t{6}\n".format(
+                                                       genename,
+                                                       len(m),
+                                                       best_ev.setdefault(name, 0),
+                                                       other_ev.setdefault(name, 0),
+                                                       u5,
+                                                       u3,
+                                                       ",".join(orig_models.keys())
+                                                       )
+                         )
+
     sizes = ",".join([str(exon.end - exon.start) for exon in exons]) + ","
     starts = ",".join([str(exon.start - chromStart) for exon in exons]) + ","
-    print "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s" % (chrom, chromStart, chromEnd, name, 600, exons[0].strand, chromStart, chromEnd, 0, len(exons), sizes, starts)
+    print "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s" % (chrom, chromStart, chromEnd, genename, 600, exons[0].strand, chromStart, chromEnd, 0, len(exons), sizes, starts)
 
-    #for t in cluster:
-    #    print len(t)
+for f in logs.values():
+    f.close()
