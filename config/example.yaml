@@ -1,0 +1,40 @@
+# Path to data files. Data files can be specified relative to this path
+data_path: /home/simon/prj/laevis/annotation/XENLA_JGI7b/pita/JGIv7b.000000004
+
+# Annotation data files
+# Follow the following layout
+# annotation:
+#     - name        : genes
+#       path        : data/genes.gff
+#       type        : gff
+#     - name        : ESTs
+#       path        : data/ESTs.gff
+#       type        : bed
+annotation:
+      - name    : cufflinks
+        path    : TairaUeno_XENLA.XENLA_JGIv7b.transcripts.gtf
+        type    : gff
+      - name    : MayBall
+        path    : XENLA_2013may.longest_cdna_annot.XENLA_JGIv7b.gmap.bed
+        type    : bed
+      - name    : JGI 
+        path    : Xenla_6.0_JGI_Gene_Models.gmap.bed
+        type    : bed
+      - name    : mRNA
+        path    : xlaevisMRNA.gmap.bed
+        type    : bed
+
+data:
+        - name          : H3K4me3
+          path          : 1954_H3K4_14_300_C022YABXX_4.1kb.bam
+          feature       : start
+          up            : 500
+          down          : 500
+#        - name          : RNAseq
+#          path          : RNAseq.merged.bam
+#          feature       : exon
+#        - name          : H3K4me3.peaks
+#          path          : H3K4me3_peaks.bed
+#          feature       : start
+#          up            : 500
+#          down          : 500

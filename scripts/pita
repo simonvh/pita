@@ -3,44 +3,77 @@ from pita.collection2 import Collection
 from pita.io import read_gff_transcripts, read_bed_transcripts
 import os
 import sys
+import logging
+import yaml
+import argparse
 
-#base = "/home/simon/prj/laevis/annotation/XENLA_JGI7b/pita/JGIv7b.000000004"
-base = "/home/simon/prj/laevis/annotation/XENLA_JGI7b/pita/data"
+DEFAULT_CONFIG = "pita.yaml"
+VALID_TYPES = ["bed", "gff", "gff3", "gtf"]
 
-gffdata = {
-    "cufflinks": os.path.join(base, "TairaUeno_XENLA.XENLA_JGIv7b.transcripts.gtf"),
-}
+# Setup logging
+formatter = logging.Formatter(fmt='%(asctime)s - %(levelname)s - %(module)s - %(message)s')
+handler = logging.StreamHandler()
+handler.setFormatter(formatter)
+logger = logging.getLogger("pita")
+logger.setLevel(logging.INFO)
+logger.addHandler(handler)
 
-beddata = {
-    "MayBall": os.path.join(base, "XENLA_2013may.longest_cdna_annot.XENLA_JGIv7b.gmap.bed"),
-    "JGI": os.path.join(base, "Xenla_6.0_JGI_Gene_Models.gmap.bed"),
-    "mRNA": os.path.join(base, "xlaevisMRNA.gmap.bed"),
-#    "EST": os.path.join(base, "xlaevisEST.gmap.bed"),
-}
+p = argparse.ArgumentParser()
+p.add_argument("-c",
+               dest= "configfile",
+               default = DEFAULT_CONFIG,
+               help="Configuration file (default: {0})".format(DEFAULT_CONFIG)
+              )
 
-data = [
-#    ["RNAseq", "/mnt/MD3000v2/simon/prj/laevis/annotation/RNAseq.merged.bam", "exon", (0,0)],
-#    ["RNAseq", os.path.join(base, "RNAseq_Scaffold55551.quick.bam"), "exon", (0,0)],
-#    ["H3K4me3", "//mnt/MD3000v2/simon/prj/laevis/data/all/H3K4me3_stage14_300_paired_norm_sorted.bam", "start", (500,500)],
-    ["H3K4me3", os.path.join(base, "1954_H3K4_14_300_C022YABXX_4.1kb.bam"), "start", (500,500)],
-#    ["H3K4me3.peaks", os.path.join(base, "H3K4me3.C0MJ4ACXX_4_peaks.bed"), "start", (500,500)],
-#    ["H3K4me3.peaks", os.path.join(base, "H3K4me3_peaks.bed"), "start", (500,500)],
-]
+args = p.parse_args()
+configfile = args.configfile
 
+# Parse YAML config file
+f = open(configfile, "r")
+config = yaml.load(f)
 
+# Data directory
+base = "."
+if config.has_key("data_path"):
+    base = config["data_path"]
+
+if not config.has_key("annotation") or len(config["annotation"]) == 0:
+    print "No annotation files specified."
+    sys.exit(1)
+
+for d in config["annotation"]:
+    logger.debug("annotation: {0}".format(d))
+    fname = os.path.join(base, d["path"])
+    t = d["type"].lower()
+    if not t in VALID_TYPES:
+        print "Invalid type: {0}".format(t)
+        sys.exit(1)
+    if not os.path.exists(fname):
+        print "File does not exist: {0}".format(fname)
+        sys.exit(1)
+    
+data = []
+for d in config["data"]:
+    logger.debug("data: {0}".format(d))
+    d.setdefault("up", 0)
+    d.setdefault("down", 0)
+    row = [d["name"], os.path.join(base, d["path"]), d["feature"], (d["up"], d["down"])]
+    data.append(row)
+
+# Read annotation files
 mc = Collection()
-for name,fname in gffdata.items():
-    sys.stderr.write("Reading annotation from {0}\n".format(fname))
-    for tname, source, exons in read_gff_transcripts(fname, 3):
-        mc.add_transcript("{0}:{1}".format(name,tname), source, exons)
-
-for name,fname in beddata.items():
-    sys.stderr.write("Reading annotation from {0}\n".format(fname))
-    for tname, source, exons in read_bed_transcripts(fname, 3):
-        mc.add_transcript("{0}:{1}".format(name,tname), source, exons)
+for f in config["annotation"]:
+    fname = os.path.join(base, f["path"])
+    logger.info("Reading annotation from {0}".format(fname))
+    if f["type"] == "bed":
+        it = read_bed_transcripts(fname, 3)
+    elif f["type"] in ["gff", "gtf", "gff3"]:
+        it = read_gff_transcripts(fname, 3)
+    for tname, source, exons in it:
+        mc.add_transcript("{0}:{1}".format(f["name"], tname), source, exons)
 
 for name, fname, span, extend in data:
-    sys.stderr.write("Reading data {0} from {1}\n".format(name, fname))
+    logger.info("Reading data {0} from {1}".format(name, fname))
     mc.get_read_statistics(fname, name=name, span=span, extend=extend)
 
 def get_updated_exons(model, name):
@@ -71,10 +104,9 @@ def get_updated_exons(model, name):
     
     return u5,u3
 
-
 log_header = "Model\tNr. Exons\tExons in best model\tExons in other models\tUpdated 5'\tUpdated 3'\tOriginal models\n"
 logs = {}
-for name in beddata.keys() + gffdata.keys():
+for name in [x["name"] for x in config["annotation"]]:
     logs[name] = open("pita.{0}.log".format(name), "w")
     logs[name].write(log_header)
 
@@ -100,7 +132,6 @@ for i, cluster in enumerate(mc.get_all_transcript_clusters()):
         genename += "V"
     else:
         genename += "X"
-
     
     best_exons = [e for e in m]
     best_ev = {}
@@ -116,7 +147,7 @@ for i, cluster in enumerate(mc.get_all_transcript_clusters()):
                 for ev in set([x.split(":")[0] for x in e.evidence]):
                     other_ev[ev] = other_ev.setdefault(ev, 0) + 1
     
-    for name in beddata.keys() + gffdata.keys():
+    for name in [x["name"] for x in config["annotation"]]:
         ev = []
         for e in best_exons + other_exons:
             for evidence in e.evidence:
