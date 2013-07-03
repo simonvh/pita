@@ -1,6 +1,9 @@
 from pita.exon import *
 from numpy import argmax,array
 import sys
+import logging
+
+logger = logging.getLogger("pita")
 
 def to_loc(chrom, start, end, strand):
     return "{0}:{1}{3}{2}".format(chrom, start, end, strand)
@@ -54,7 +57,7 @@ class Collection:
             try:
                 e1.add_link(e2, name)
             except:
-                sys.stderr.write("Not linking {0} and {1}\n".format(str(e1), str(e2)))
+                logger.warn("Not linking {0} and {1}".format(str(e1), str(e2)))
     
     def get_initial_exons(self):
         """ Return all leftmost exons
@@ -136,14 +139,14 @@ class Collection:
         """
         clusters = []
         transcripts = self.get_all_transcripts()
-        sys.stderr.write("Sorting\n")
+        logger.debug("Sorting transcripts")
         transcripts = sorted(transcripts, 
                              lambda x,y: cmp(
                                             (x[0].chr, x[0].start),
                                             (y[0].chr, y[0].start)
                                             )
                             )
-        sys.stderr.write("Done\n")
+        logger.debug("Done")
         
         while 1: 
             cluster, transcripts = self.get_overlapping_cluster(transcripts)
