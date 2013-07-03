@@ -2,6 +2,10 @@ from BCBio import GFF
 from pita.collection import *
 import pprint
 import sys
+import logging 
+
+# Setup logging
+logger = logging.getLogger('pita')
 
 def merge_exons(exons):
     return exons
@@ -9,7 +13,6 @@ def merge_exons(exons):
         return exons
     new_exons = []
     #for e2, e1
-
 
 def _gff_type_iterator(feature, ftypes):
     if feature.type in ftypes:
@@ -19,28 +22,31 @@ def _gff_type_iterator(feature, ftypes):
             for f in _gff_type_iterator(feature, ftypes):
                 yield f
 
-def read_gff_transcripts(fname):
+def read_gff_transcripts(fname, min_exons=1):
     #limits = dict(gff_type = ["mRNA", "exon"])
-    smap = {"1":"+",1:"+","-1":"-",-1:"-"}
+    smap = {"1":"+",1:"+","-1":"-",-1:"-", None:"+"}
     transcripts = []
     for rec in GFF.parse(open(fname)):
         chrom = rec.id
         for feature in rec.features:
-            for gene in _gff_type_iterator(feature, ['mRNA', 'transcript']):
-                sys.stderr.write("Adding gene: {0}\n".format(gene))
+            logger.debug("feature: {0}".format(feature))
+            
+            for gene in _gff_type_iterator(feature, ['mRNA', 'transcript', 'inferred_parent']):
+                logger.debug("Adding gene: {0}".format(gene))
                 exons = []
+                logger.debug("subfeatures: {0}".format(gene.sub_features))
                 for exon in [f for f in gene.sub_features if f.type == 'exon']:
-                    link[gene.id] = link.setdefault(gene.id, 0) + 1
-                    start = int(exon.location.start.position) - 1    
+                    #link[gene.id] = link.setdefault(gene.id, 0) + 1
+                    start = int(exon.location.start.position)# - 1    
                     end = int(exon.location.end.position)
                     strand = smap[exon.strand]
                     exons.append([chrom, start, end, strand])
-
-                transcripts.append([gene.id, fname, exons])
+                if len(exons) >= min_exons:
+                    transcripts.append([gene.id, fname, exons])
 
     return transcripts
 
-def read_bed_transcripts(bedfile):
+def read_bed_transcripts(bedfile, min_exons=1):
     names = {}
     transcripts = []
     for line in open(bedfile):
@@ -58,7 +64,7 @@ def read_bed_transcripts(bedfile):
                     name = "%s_%s_%s" % (vals[0], vals[3], i)
                 names[name] = 1
                     
-                sys.stderr.write("read_bed: adding {0}\n".format(vals[3]))
+                logger.debug("read_bed: adding {0}".format(vals[3]))
                 exons = [[vals[0], 
                           chromStart + start, 
                           chromStart + start + size, 
@@ -66,7 +72,8 @@ def read_bed_transcripts(bedfile):
                          for start, size in zip(starts, sizes)
                          ]
                 
-                transcripts.append([name, bedfile, exons])
+                if len(exons) >= min_exons:
+                    transcripts.append([name, bedfile, exons])
     return transcripts
 
 
@@ -79,7 +86,7 @@ def read_gff(fname, format="gtf", collection=None, prefix=None):
         chrom = rec.id
         for feature in rec.features:
             for gene in _gff_type_iterator(feature, ['mRNA', 'transcript']):
-                sys.stderr.write("Adding gene: {0}\n".format(gene))
+                #sys.stderr.write("Adding gene: {0}\n".format(gene))
                 for exon in [f for f in gene.sub_features if f.type == 'exon']:
                     #print gene.strand, exon.location, gene.id
                     link[gene.id] = link.setdefault(gene.id, 0) + 1
@@ -111,13 +118,13 @@ def read_bed(bedfile, collection=None, prefix=None):
                     name = "%s_%s_%s" % (vals[0], vals[3], i)
                 names[name] = 1
                     
-                sys.stderr.write("read_bed: adding {0}\n".format(vals[3]))
+                #sys.stderr.write("read_bed: adding {0}\n".format(vals[3]))
                 for start, size in zip(starts, sizes):
                     #print     
                     #print vals[0], chromStart + start, chromStart + start + size, vals[5], name
                     if size < 0:
                         print line
-                    sys.stderr.write("read_bed: exon {0}:{1}-{2}\n".format(vals[0], chromStart + start, chromStart + start + size))
+                    logger.debug("read_bed: exon {0}:{1}-{2}".format(vals[0], chromStart + start, chromStart + start + size))
                     collection.add(vals[0], chromStart + start, chromStart + start + size, vals[5], "bla", transcript=name)    
 
     #print link
