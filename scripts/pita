@@ -1,202 +1,146 @@
 #!/usr/bin/env python
-from solexatools import peak_stats
-from pita.collection import *
-from pita.util import get_expressed_models,get_most_likely_model,get_tss_models, get_alternative_tss,get_fm,get_all_likely_models
-from pita import config
-from solexatools.track import SimpleTrack
-from numpy import *
+from pita.collection2 import Collection
+from pita.io import read_gff_transcripts, read_bed_transcripts
+import os
 import sys
-import cProfile
+
+#base = "/home/simon/prj/laevis/annotation/XENLA_JGI7b/pita/JGIv7b.000000004"
+base = "/home/simon/prj/laevis/annotation/XENLA_JGI7b/pita/data"
 
 gffdata = {
-	"Xenbase":"/home/simon/git/pita/tests/data/xenbase_annotation.gff3"
+    "cufflinks": os.path.join(base, "TairaUeno_XENLA.XENLA_JGIv7b.transcripts.gtf"),
 }
 
 beddata = {
-	"Cufflinks":"/home/simon/git/pita/tests/data/cufflinks.bed",
-#	"EST":"/home/simon/prj/xenopus/xtev/xenTro3/data/annotation/est_clusters_jgi7.1_fixed.bed"
+    "MayBall": os.path.join(base, "XENLA_2013may.longest_cdna_annot.XENLA_JGIv7b.gmap.bed"),
+    "JGI": os.path.join(base, "Xenla_6.0_JGI_Gene_Models.gmap.bed"),
+    "mRNA": os.path.join(base, "xlaevisMRNA.gmap.bed"),
+#    "EST": os.path.join(base, "xlaevisEST.gmap.bed"),
 }
 
-#xt_size = 1459634564 
-MINIMUM_FRACTION_EXPRESSED = 1/3.0
-MINIMUM_RNASEQ_READS = 10
+data = [
+#    ["RNAseq", "/mnt/MD3000v2/simon/prj/laevis/annotation/RNAseq.merged.bam", "exon", (0,0)],
+#    ["RNAseq", os.path.join(base, "RNAseq_Scaffold55551.quick.bam"), "exon", (0,0)],
+#    ["H3K4me3", "//mnt/MD3000v2/simon/prj/laevis/data/all/H3K4me3_stage14_300_paired_norm_sorted.bam", "start", (500,500)],
+    ["H3K4me3", os.path.join(base, "1954_H3K4_14_300_C022YABXX_4.1kb.bam"), "start", (500,500)],
+#    ["H3K4me3.peaks", os.path.join(base, "H3K4me3.C0MJ4ACXX_4_peaks.bed"), "start", (500,500)],
+#    ["H3K4me3.peaks", os.path.join(base, "H3K4me3_peaks.bed"), "start", (500,500)],
+]
 
-GENE_VALIDATED = "V"
-GENE_UPDATED = "U"
-GENE_NEW = "N"
-GENE_NOTEXPRESSED = "X"
-
-#POLII_FRACTION_UPSTREAM = 0.5
 
 mc = Collection()
 for name,fname in gffdata.items():
-	mc.add_annotation(fname, "gff3")
+    sys.stderr.write("Reading annotation from {0}\n".format(fname))
+    for tname, source, exons in read_gff_transcripts(fname, 3):
+        mc.add_transcript("{0}:{1}".format(name,tname), source, exons)
 
 for name,fname in beddata.items():
-	mc.add_annotation(fname, "bed")
+    sys.stderr.write("Reading annotation from {0}\n".format(fname))
+    for tname, source, exons in read_bed_transcripts(fname, 3):
+        mc.add_transcript("{0}:{1}".format(name,tname), source, exons)
 
-data = [
-	["RNAseq", "tests/data/tmp/accepted_hits_sorted.bam", "exon", (0,0)],
-	["RNAPII", "tests/data/RNAPII.bam", "start", (750,250)],
-	["RNAPII.up", "tests/data/RNAPII.bam", "start", (1750,-750)],
-	["RNAPII.down", "tests/data/RNAPII.bam", "start", (-250,1250)],
-	["RNAPII.peaks", "tests/data/RNAPII_peaks.bed", "start", (750,250)],
-	["H3K4me3", "tests/data/H3K4me3.bam", "start", (500,500)],
-	["H3K4me3.peaks", "tests/data/H3K4me3_peaks.bed", "start", (500,500)]
-]
-k4_peaks = "tests/data/H3K4me3_peaks.bed"
-
-
-# Calculate overlaps
 for name, fname, span, extend in data:
-	mc.get_read_statistics(fname, name=name, span=span, extend=extend)
+    sys.stderr.write("Reading data {0} from {1}\n".format(name, fname))
+    mc.get_read_statistics(fname, name=name, span=span, extend=extend)
+
+def get_updated_exons(model, name):
+    strand = model[0].strand
+    n = 0
+    u5 = 0
+    u3 = 0
+    for e in best_exons:
+        if name in [x.split(":")[0] for x in e.evidence]:
+            break
+        n += 1
+
+    if strand == "-":
+        u3 = n
+    else:
+        u5 = n 
+     
+    n = 0
+    for e in best_exons[::-1]:
+        if name in [x.split(":")[0] for x in e.evidence]:
+            break
+        n += 1
+
+    if strand == "-":
+        u5 = n
+    else:
+        u3 = n
+    
+    return u5,u3
 
 
+log_header = "Model\tNr. Exons\tExons in best model\tExons in other models\tUpdated 5'\tUpdated 3'\tOriginal models\n"
+logs = {}
+for name in beddata.keys() + gffdata.keys():
+    logs[name] = open("pita.{0}.log".format(name), "w")
+    logs[name].write(log_header)
 
-def validate_models():
-	sys.stderr.write("Starting validation\n")
-	sys.stderr.write("PolII\n")
-	
-	all_models = mc.get_transcript_clusters()
-	transcripts = []
-	for ts in all_models:
-		for transcript in ts:
-			transcripts.append(transcript)
-	
-	high_polII  = {}
-	for t in transcripts:
-		start_exon = mc.get_transcript_start_exon(transcript)
-		s = start_exon.stats
-		if s["RNAPII"] > s["RNAPII.up"] and s["RNAPII"] > s["RNAPII.down"]:
-			sys.stderr.write("Transcript %s has high RNAPII at TSS, %s\n" % (t, start_exon))
-			high_polII[t] = 1
-	
-	
-	pos = {}
-	t = SimpleTrack(k4_peaks)
-	f = t.get_next_feature()
-	while f:
-		pos.setdefault(f[0],[]).append((f[1],f[2]))
-		f = t.get_next_feature()
-	
-	annoname = "xt_%s_%s%s"
-	scaffold_count = {}
-	
-	sys.stderr.write("Validating models\n")
-	
-	upstream_check = {}
-	best_models = {}
-	map_models = {}
-	alt_tss = {}
-	
-	for (mstatus, models) in enumerate(all_models):
-		# Give status
-		sys.stderr.write("%s of %s tested (%i)\n" % (mstatus + 1, len(all_models), (mstatus + 1)/ float(len(all_models)) * 100))
-		
-		best_model = None
-		tss_status = None
-		gene_status = None
-	
-		# Get all expressed transcripts
-		expressed_models = get_expressed_models(mc, models, minreads=MINIMUM_RNASEQ_READS, fraction=MINIMUM_FRACTION_EXPRESSED)
-		sys.stderr.write("CHECK: %s\n" % str(models))
-		sys.stderr.write("EXPRESSED: %s\n" % str(expressed_models))
-		
-		if expressed_models:
-			# One or more models is expressed
-			tss_models = get_tss_models(mc, expressed_models)
-			if tss_models:
-				tss_status = config.TSS_FOUND
-				best_model = get_most_likely_model(mc, tss_models, expression=True)
-				sys.stderr.write("TSS FOUND\n")
-			else:
-				sys.stderr.write("TSS not found\n")
-				tss_status, tss = get_alternative_tss(mc, expressed_models, pos)
-				best_model = get_most_likely_model(mc, expressed_models, expression=True)
-				if tss_status == config.TSS_UPSTREAM:
-					upstream_check[best_model] = tss
-	
-			sys.stderr.write("best model %s\n" % best_model)
-			
-			tss = False #get_downstream_tss(mc, best_model)
-			#if len(tss) > 1 and tss_status == TSS_NOTFOUND:
-			#	tss_status = TSS_DOWNSTREAM
-			#elif tss:
-			#	tss_status = TSS_MULTIPLE
-			if tss:
-				alt_tss[best_model] = True
-			else:
-				alt_tss[best_model] = False 
-				
-			fm = get_fm(models)
-			if not fm:
-				sys.stderr.write("model %s is new\n" % best_model)
-				gene_status = GENE_NEW
-	##### UDPATEEEEE #####
-	#		elif best_model != fm or splice.has_key(best_model):# or estsplice.has_key(best_model):
-	#			gene_status = GENE_UPDATED
-			else:
-				gene_status = GENE_VALIDATED
-	
-		else:
-			# No expression detected, but there is a H3K4me3 peak
-			tss_models = get_tss_models(mc, models)
-			if tss_models:
-				tss_status = config.TSS_FOUND
-				gene_status = GENE_NOTEXPRESSED
-				best_model = get_most_likely_model(mc, tss_models, expression=False)
-				alt_tss[best_model] = False
-		if gene_status:
-			if get_fm(models):
-				gene_id = "xt_%s_%s%s" % (get_fm(models), gene_status, tss_status)
-			else:
-				gene_id = "xt_%s_%s%s" % (best_model, gene_status, tss_status)
-			
-			#if estsplice.has_key(best_model):
-			#	gene_id += "_EST"
-			
-			sys.stderr.write("adding %s (%s) to best_models\n" % (gene_id, best_model))
-			best_models[best_model] = gene_id
-			map_models[best_model] = models
-	#
-	#true_upstream = check_polII_upstream(upstream_check, polII_data)
-	#for model in upstream_check.keys():
-	#	if model in true_upstream:
-	#		#print "%s has upstream! %s" % (model, best_models[model])
-	#		pass
-	#	else:
-	#		if best_models[model].endswith(TSS_UPSTREAM):
-	#			best_models[model] =  best_models[model][:-1] + TSS_NOTFOUND
-	#		#if best_models[model].endswith(TSS_MULTIPLE):
-	#		#	best_models[model] =  best_models[model][:-1] + TSS_DOWNSTREAM
-	#		#print "%s not upstream! %s" % (model, best_models[model])
-	#
-	sys.stderr.write("BEST models: %s\n" % str(best_models))
-	#out = open("id_mapping.txt", "w")
-	sys.stderr.write("overlap: %s\n" % str(mc.get_overlapping_transcripts(best_models.keys())))
-	for cluster in mc.get_overlapping_transcripts(best_models.keys()):
-		if len(cluster) > 1:
-			sys.stderr.write("Have to choose:\n")
-			for model in cluster:
-				sys.stderr.write("Option: %s\t%s\n" % (model, best_models[model]))
-			#print "Have to choose"
-			#print "Before", cluster
-			models = get_all_likely_models(mc, cluster, best_models)
-			#print "After", models
-			sys.stderr.write("After exon filter %s\n" % str(models))
-			sys.stderr.write("\n")	
-		else:
-			models = cluster[:]
-		for model in models:
-			if best_models[model][-2] == GENE_NEW:
-				best_models[model] = best_models[model][:-2] + GENE_VALIDATED + best_models[model][-1]
-			
-			if alt_tss[model]:
-				best_models[model] += config.TSS_DOWNSTREAM
-			
-			print mc.to_bed(model, best_models[model])
-	#		out.write("%s\t%s\n" % (best_models[model], "\t".join(map_models[model])))
-	#out.close()
+print 'track name="pita_test"'
+for i, cluster in enumerate(mc.get_all_transcript_clusters()):
+    
+    m = mc.max_weight(cluster, {"RNAseq": 1, "H3K4me3":2}, {"RNAseq": "all", "H3K4me3":"first"})
+    #m = mc.max_weight(cluster, {"RNAseq": 1}, {"RNAseq": "all"})
+    #m = mc.max_weight(cluster, {}, {}) 
+    exons = m
+    chrom = exons[0].chr
+    chromStart = exons[0].start
+    chromEnd = exons[-1].end
+    genename = "{0}:{1}-{2}_".format(chrom, chromStart, chromEnd)
+    #if mc.get_weight(m, "H3K4me3.peaks", "first") > 0:
+    if mc.get_weight(m, "H3K4me3", "first") > 100:
+        genename += "V"
+    else:
+        genename += "X"
+   
+    x = mc.get_weight(m, "RNAseq", "all") / (sum([e.end - e.start for e in m]) / 1000.0)
+    if x > 5:
+        genename += "V"
+    else:
+        genename += "X"
 
-#cProfile.run("validate_models()")
-validate_models()
+    
+    best_exons = [e for e in m]
+    best_ev = {}
+    for e in best_exons:
+        for ev in set([x.split(":")[0] for x in e.evidence]):
+            best_ev[ev] = best_ev.setdefault(ev, 0) + 1
+    other_exons = []
+    other_ev = {}
+    for o in cluster:
+        for e in o:
+            if not (e in best_exons or e in other_exons):
+                other_exons.append(e)
+                for ev in set([x.split(":")[0] for x in e.evidence]):
+                    other_ev[ev] = other_ev.setdefault(ev, 0) + 1
+    
+    for name in beddata.keys() + gffdata.keys():
+        ev = []
+        for e in best_exons + other_exons:
+            for evidence in e.evidence:
+                ev.append(evidence.split(":"))
+        orig_models = {}
+        for (origin,orig_name) in ev:
+            if origin == name:
+                orig_models[orig_name] = orig_models.setdefault(orig_name, 0) + 1
+
+        u5, u3 = get_updated_exons(m, name)
+        logs[name].write("{0}\t{1}\t{2}\t{3}\t{4}\t{5}\t{6}\n".format(
+                                                       genename,
+                                                       len(m),
+                                                       best_ev.setdefault(name, 0),
+                                                       other_ev.setdefault(name, 0),
+                                                       u5,
+                                                       u3,
+                                                       ",".join(orig_models.keys())
+                                                       )
+                         )
+
+    sizes = ",".join([str(exon.end - exon.start) for exon in exons]) + ","
+    starts = ",".join([str(exon.start - chromStart) for exon in exons]) + ","
+    print "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s" % (chrom, chromStart, chromEnd, genename, 600, exons[0].strand, chromStart, chromEnd, 0, len(exons), sizes, starts)
+
+for f in logs.values():
+    f.close()
