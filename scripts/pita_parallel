@@ -12,6 +12,8 @@ import pp
 from tempfile import NamedTemporaryFile
 import multiprocessing as mp
 from functools import partial
+import signal
+import itertools
 
 DEFAULT_CONFIG = "pita.yaml"
 VALID_TYPES = ["bed", "gff", "gff3", "gtf"]
@@ -103,6 +105,9 @@ print 'track name="pita_test"'
 chroms = chroms.keys()
 #chroms = ["JGIv7b.000000004", "JGIv7b.000087017"]
 
+def init_worker():
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
+
 def listener(q, names):
     '''listens for messages on the q, writes to file. '''
 
@@ -115,7 +120,7 @@ def listener(q, names):
         if m == 'kill':
             break
        
-        genename, exons, cluster = m
+        genename, exons,  ev, best_ev, other_ev = m
         chrom = exons[0].chr
         chromStart = exons[0].start
         chromEnd = exons[-1].end
@@ -135,18 +140,38 @@ def listener(q, names):
                                 sizes, 
                                 starts
                                 )
-        alog.log_to_file(genename, exons, cluster) 
+        alog.log_to_file(genename, exons,  ev, best_ev, other_ev ) 
 
 def annotate_chrom(chrom, q, anno_files, data, weight):
-    for genename,exons,cluster in get_chrom_models(chrom, anno_files, data, weight):
-        q.put([genename, exons, cluster])
+    for genename,best_exons,cluster in get_chrom_models(chrom, anno_files, data, weight):
+        ### Ugly logging stuff
+        best_ev = {}
+        for e in best_exons:
+            for ev in set([x.split(":")[0] for x in e.evidence]):
+                best_ev[ev] = best_ev.setdefault(ev, 0) + 1
+        other_exons = []
+        other_ev = {}
+        
+        # Fast way to collapse
+        other_exons = [e for e in set(itertools.chain.from_iterable(cluster)) if not e in best_exons]
+        for e in other_exons:
+            for ev in set([x.split(":")[0] for x in e.evidence]):
+                other_ev[ev] = other_ev.setdefault(ev, 0) + 1
+        ev = []
+        for e in best_exons + other_exons:
+            for evidence in e.evidence:
+                ev.append(evidence.split(":"))
+        
+        ### End ugly logging stuff
+
+        logger.info("QueueEEE!")    
+        q.put([genename, best_exons, ev, best_ev, other_ev])
 
     logger.info("Chromosome {0} finished".format(chrom))
 
 manager = mp.Manager()
 q = manager.Queue()    
-pool = mp.Pool() 
-
+pool = mp.Pool(7, init_worker) 
 partialAnnotate = partial(annotate_chrom, q=q, anno_files=anno_files, data=data, weight=weight)
 
 try:

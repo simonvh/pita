@@ -246,12 +246,12 @@ class Collection:
                 w = w + idw
         return transcripts[numpy.argmax(w)]
 
-def get_updated_exons(model, name, best_exons):
+def get_updated_exons(model, name):
     strand = model[0].strand
     n = 0
     u5 = 0
     u3 = 0
-    for e in best_exons:
+    for e in model:
         if name in [x.split(":")[0] for x in e.evidence]:
             break
         n += 1
@@ -262,7 +262,7 @@ def get_updated_exons(model, name, best_exons):
         u5 = n 
      
     n = 0
-    for e in best_exons[::-1]:
+    for e in model[::-1]:
         if name in [x.split(":")[0] for x in e.evidence]:
             break
         n += 1
