@@ -10,7 +10,7 @@ import pysam
 import subprocess
 import pp
 from tempfile import NamedTemporaryFile
-from multiprocessing import Pool
+import multiprocessing as mp
 from functools import partial
 
 DEFAULT_CONFIG = "pita.yaml"
@@ -21,7 +21,7 @@ formatter = logging.Formatter(fmt='%(asctime)s - %(levelname)s - %(module)s - %(
 handler = logging.StreamHandler()
 handler.setFormatter(formatter)
 logger = logging.getLogger("pita")
-logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.INFO)
 logger.addHandler(handler)
 
 p = argparse.ArgumentParser()
@@ -60,6 +60,7 @@ for d in config["annotation"]:
         print "File does not exist: {0}".format(fname)
         sys.exit(1)
     else:
+        logger.info("Preparing {0} for tabix".format(fname))
         tmp = NamedTemporaryFile()
         preset = "gff"
         if t == "bed":
@@ -102,25 +103,19 @@ print 'track name="pita_test"'
 chroms = chroms.keys()
 #chroms = ["JGIv7b.000000004", "JGIv7b.000087017"]
 
-alog = AnnotationLog()
-for name in [x[0] for x in anno_files]:
-    alog.add(name)
+def listener(q, names):
+    '''listens for messages on the q, writes to file. '''
 
-def annotate_chrom(chrom, anno_files, data, weight):
-    ret = []
-    for row in get_chrom_models(chrom, anno_files, data, weight):
-        ret.append(row)
-    return ret
-
-partialAnnotate = partial(annotate_chrom, anno_files=anno_files, data=data, weight=weight)
-
-pool = Pool() 
-results = pool.map(partialAnnotate, chroms) 
-pool.close()
-pool.join() 
-
-for result in results:
-    for genename,exons,cluster in result:
+    alog = AnnotationLog()
+    for name in names:
+        alog.add(name)
+    
+    while 1:
+        m = q.get()
+        if m == 'kill':
+            break
+       
+        genename, exons, cluster = m
         chrom = exons[0].chr
         chromStart = exons[0].start
         chromEnd = exons[-1].end
@@ -140,4 +135,29 @@ for result in results:
                                 sizes, 
                                 starts
                                 )
-        alog.log_to_file(genename, exons, cluster)
+        alog.log_to_file(genename, exons, cluster) 
+
+def annotate_chrom(chrom, q, anno_files, data, weight):
+    for genename,exons,cluster in get_chrom_models(chrom, anno_files, data, weight):
+        q.put([genename, exons, cluster])
+
+    logger.info("Chromosome {0} finished".format(chrom))
+
+manager = mp.Manager()
+q = manager.Queue()    
+pool = mp.Pool() 
+
+partialAnnotate = partial(annotate_chrom, q=q, anno_files=anno_files, data=data, weight=weight)
+
+try:
+    #put listener to work first
+    watcher = pool.apply_async(listener, (q,[x[0] for x in anno_files]))
+
+    pool.map(partialAnnotate, chroms) 
+    q.put('kill')
+    pool.close()
+    pool.join()
+except KeyboardInterrupt:
+    print "Caught KeyboardInterrupt, terminating workers"
+    pool.terminate()
+    pool.join()

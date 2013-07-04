@@ -10,7 +10,7 @@ def get_chrom_models(chrom, anno_files, data, weight):
     # Read annotation files
     mc = Collection()
     for name, fname, ftype in anno_files:
-        logger.info("Reading annotation from {0}".format(fname))
+        logger.debug("Reading annotation from {0}".format(fname))
         tabixfile = pysam.Tabixfile(fname)
         if chrom in tabixfile.contigs:
             fobj = TabixIteratorAsFile(tabixfile.fetch(chrom))
@@ -22,7 +22,7 @@ def get_chrom_models(chrom, anno_files, data, weight):
                 mc.add_transcript("{0}:{1}".format(name, tname), source, exons)
 
     for name, fname, span, extend in data:
-        logger.info("Reading data {0} from {1}".format(name, fname))
+        logger.debug("Reading data {0} from {1}".format(name, fname))
         mc.get_read_statistics(fname, name=name, span=span, extend=extend)
 
     for i, cluster in enumerate(mc.get_all_transcript_clusters()):
