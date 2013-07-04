@@ -1,7 +1,7 @@
 from distutils.core import setup
 import setuptools
 
-VERSION = "1.0"
+VERSION = "1.10"
 DESCRIPTION = """
 pita - pita improves transcript annotation
 """
@@ -16,7 +16,7 @@ setup (name = 'pita',
 			'pita'
 		],
 		scripts=[
-#			"scripts/pita",
+			"scripts/pita",
 		],
 		data_files=[]
 )

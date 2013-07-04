@@ -8,8 +8,10 @@ import yaml
 import argparse
 import pysam
 import subprocess
-import multiprocessing
+import pp
 from tempfile import NamedTemporaryFile
+from multiprocessing import Pool
+from functools import partial
 
 DEFAULT_CONFIG = "pita.yaml"
 VALID_TYPES = ["bed", "gff", "gff3", "gtf"]
@@ -97,16 +99,28 @@ if config.has_key("scoring"):
 
 line_format = "{0}\t{1}\t{2}\t{3}\t{4}\t{5}\t{6}\t{7}\t{8}\t{9}\t{10}\t{11}"
 print 'track name="pita_test"'
-#chroms = chroms.keys()
+chroms = chroms.keys()
 #chroms = ["JGIv7b.000000004", "JGIv7b.000087017"]
-chroms = ["JGIv7b.000087017"]
 
 alog = AnnotationLog()
 for name in [x[0] for x in anno_files]:
     alog.add(name)
 
-for chrom in chroms:
-    for genename,exons,cluster in get_chrom_models(chrom, anno_files, data, weight):
+def annotate_chrom(chrom, anno_files, data, weight):
+    ret = []
+    for row in get_chrom_models(chrom, anno_files, data, weight):
+        ret.append(row)
+    return ret
+
+partialAnnotate = partial(annotate_chrom, anno_files=anno_files, data=data, weight=weight)
+
+pool = Pool() 
+results = pool.map(partialAnnotate, chroms) 
+pool.close()
+pool.join() 
+
+for result in results:
+    for genename,exons,cluster in result:
         chrom = exons[0].chr
         chromStart = exons[0].start
         chromEnd = exons[-1].end
@@ -127,4 +141,3 @@ for chrom in chroms:
                                 starts
                                 )
         alog.log_to_file(genename, exons, cluster)
-    logger.debug("Finished {0}".format(chrom))

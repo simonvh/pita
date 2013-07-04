@@ -1,5 +1,5 @@
 # Path to data files. Data files can be specified relative to this path
-data_path: /home/simon/prj/laevis/annotation/XENLA_JGI7b/pita/JGIv7b.000000004
+data_path: /home/simon/prj/laevis/annotation/XENLA_JGI7b/pita/data
 
 # Annotation data files
 # Follow the following layout
@@ -38,3 +38,16 @@ data:
 #          feature       : start
 #          up            : 500
 #          down          : 500
+
+# Scoring section 
+# This determines how transcripts are scored
+# valid types are 'all' to score all exons, or 'first' to only score the first exon
+scoring:
+        - name          : RNAseq
+          weight        : 1
+          type          : all
+        - name          : H3K4me3
+          weight        : 2
+          type          : first
+
+
