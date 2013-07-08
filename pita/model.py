@@ -2,7 +2,7 @@ from pita.collection import Collection
 from pita.io import TabixIteratorAsFile, read_gff_transcripts, read_bed_transcripts
 import logging
 import pysam
-
+import itertools
 
 def get_chrom_models(chrom, anno_files, data, weight):
     logger = logging.getLogger("pita")
@@ -25,7 +25,8 @@ def get_chrom_models(chrom, anno_files, data, weight):
         logger.debug("Reading data {0} from {1}".format(name, fname))
         mc.get_read_statistics(fname, name=name, span=span, extend=extend)
 
-    for i, cluster in enumerate(mc.get_all_transcript_clusters()):
+    for cluster in mc.get_connected_models():
+        
         best_model = mc.max_weight(cluster, weight)
         genename = "{0}:{1}-{2}_".format(
                                         best_model[0].chr,
@@ -44,6 +45,7 @@ def get_chrom_models(chrom, anno_files, data, weight):
             genename += "V"
         else:
             genename += "X"
-          
-        yield genename, best_model, cluster
+        other_exons = [e for e in set(itertools.chain.from_iterable(cluster)) if not e in best_model]  
+        del cluster
+        yield genename, best_model, other_exons
 

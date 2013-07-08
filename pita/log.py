@@ -5,12 +5,16 @@ import logging
 class AnnotationLog:
     header = "Model\tNr. Exons\tExons in best model\tExons in other models\tUpdated 5'\tUpdated 3'\tOriginal models\n"
     log_str = "{0}\t{1}\t{2}\t{3}\t{4}\t{5}\t{6}\n"
-    def __init__(self):
+    def __init__(self, append):
         self.files = {}
         self.logger = logging.getLogger('pita')
-    
+        self.append = append 
+
     def add(self, name):
-        self.files[name] = open("pita.{0}.log".format(name), "w")
+        mode = "w"
+        if self.append:
+            mode = "a"
+        self.files[name] = open("pita.{0}.log".format(name), mode)
         self.files[name].write(self.header)
          
     def log_to_file(self, genename, model, ev, best_ev, other_ev):

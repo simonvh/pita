@@ -2,7 +2,10 @@ from pita.exon import *
 import numpy
 import sys
 import logging
-
+import pickle
+from networkx.algorithms.components.connected import connected_components
+import networkx as nx 
+from itertools import izip, count
 
 def to_loc(chrom, start, end, strand):
     return "{0}:{1}{3}{2}".format(chrom, start, end, strand)
@@ -15,7 +18,9 @@ class Collection:
         # dict with chrom as key
         self.exons = {}
         self.logger = logging.getLogger("pita")
-    
+        self.graph = nx.DiGraph()
+
+
     def add_exon(self, chrom, start, end, strand):
         """ 
         Create Exon object if does not exist.
@@ -50,6 +55,9 @@ class Collection:
         #sys.stderr.write("Adding {0} with {1} exons\n".format(name, len(exons)))
         # First add all exons
         exons = [self.add_exon(*exon) for exon in exons]
+        
+        self.graph.add_path(exons)
+        
         [exon.add_evidence(name) for exon in exons]
 
         # Now add evidence and link them
@@ -124,52 +132,93 @@ class Collection:
                 #else:
                 #    sys.stderr.write("No\n{0}\n{1}!\n".format(t,t2))
     
-    def get_overlapping_cluster(self, transcripts):
-        if len(transcripts) == 0:
-            return [],[]
-        c = [transcripts.pop(0)]
-        while transcripts and transcripts[0][0].chr == c[-1][0].chr and transcripts[0][0].start < max([x[-1].end for x in c]):
-            c.append(transcripts.pop(0))
-        return c, transcripts
+    def get_overlap_index(self, transcripts):
+        m = 0
+        for i, t1 in izip(count(), transcripts[:-1]):
+            m = max([m, t1[-1].end])
+            t2 = transcripts[i + 1]
+            if t1[0].chr != t2[0].chr or t2[0].start > m:
+                return i + 1
+        return len(transcripts)
+            
+    def to_graph(self, l):
+        G = nx.Graph()
+        for part in l:
+            G.add_nodes_from(part)
+            G.add_edges_from(izip(part[0:-1], part[1:]))
+        return G
+   
+    def get_connected_models(self):
+        self.logger.debug("get_connected_models")
+        for c in nx.weakly_connected_components(self.graph):
+            self.logger.debug("calculating paths of {0} exons".format(len(c)))
+            starts =  [k for k,v in self.graph.in_degree(c).items() if v == 0]
+            self.logger.debug("{0} starts".format(len(starts)))
+            ends = [k for k,v in self.graph.out_degree(c).items() if v == 0]
+            self.logger.debug("{0} ends".format(len(ends)))
+            paths = []
+            
+            for i,s in enumerate(starts):
+                self.logger.debug("{0} out of {1} starts".format(i+ 1, len(starts)))
+                self.logger.debug("Starting at {0} ".format(str(s)))
+                for e in ends:
+                    for path in nx.all_simple_paths(self.graph, s, e):
+                        self.logger.debug("Adding {0}".format(str(path)))
+                        paths.append(path)
+            
+            self.logger.debug("yielding {0} paths".format(len(paths)))
+            yield paths
 
-    
     def get_all_transcript_clusters(self):
         """ Returns a list of lists of transcripts
         All transcript sharing at least one exon are grouped together
         """
-        clusters = []
         transcripts = self.get_all_transcripts()
-        self.logger.debug("Sorting transcripts")
-        transcripts = sorted(transcripts, 
+        if len(transcripts ) > 0:
+            self.logger.debug("Sorting transcripts ({0})".format(transcripts[0][0].chr))
+            transcripts = sorted(transcripts, 
                              lambda x,y: cmp(
                                             (x[0].chr, x[0].start),
                                             (y[0].chr, y[0].start)
                                             )
                             )
-        self.logger.debug("Done")
+            self.logger.debug("Done")
         
-        self.logger.debug("Get overlapping transcripts")
-        while 1: 
-            cluster, transcripts = self.get_overlapping_cluster(transcripts)
-            #print len(cluster), len(transcripts)
-            tmp = []
-            for t in cluster:
-                i = self.get_overlapping_index(tmp, t)
-                if i >= 0:
-                    #print "Adding {0} to {1}".format(t, i)
-                    tmp[i].append(t)
-                else:
-                    #print "Appending {0}".format(t)
-                    tmp.append([t])
-            clusters += tmp
+            self.logger.debug("Get overlapping transcripts")
+        
+            #f = open("transcripts.pickle", "w")
+            #pickle.dump(transcripts, f)
+            #f.close()
             
-            if len(transcripts) == 0:
-                break
-        
-        self.logger.debug("Done")
+            #clusters = []
+            while 1: 
+                self.logger.debug("Overlap of {0}:{1}-{2}, {3} models".format(
+                                                                transcripts[0][0].chr,
+                                                                transcripts[0][0].start,
+                                                                transcripts[1][-1].end,
+                                                                len(transcripts)))
+ 
+                overlap_i = self.get_overlap_index(transcripts)
+                self.logger.debug("exon index")
+                e_index = {}
+                for i, t in izip(count(), transcripts[:overlap_i]):
+                    for e in t:
+                        e_index.setdefault(e, []).append(i)
+                
+                self.logger.debug("Building graph")
+                G = self.to_graph(e_index.values())
+                result = connected_components(G)
+                for c in result:
+                    yield [transcripts[x] for x in c]
+                
+
+                del transcripts[:overlap_i]
+                if len(transcripts) == 0:
+                    break
+            self.logger.debug("Done")
         
            
-        return clusters 
+        #return clusters 
 
     def get_read_statistics(self, fname, name, span="exon", extend=(0,0)):
         from fluff.fluffio import get_binned_stats
