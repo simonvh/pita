@@ -17,6 +17,7 @@ setup (name = 'pita',
 		],
 		scripts=[
 			"scripts/pita",
+			"scripts/pita_parallel",
 		],
 		data_files=[]
 )

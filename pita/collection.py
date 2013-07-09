@@ -57,7 +57,9 @@ class Collection:
         exons = [self.add_exon(*exon) for exon in exons]
         
         self.graph.add_path(exons)
-        
+        for e in exons:
+            self.graph.node[e]['lala'] = -1
+
         [exon.add_evidence(name) for exon in exons]
 
         # Now add evidence and link them
@@ -149,22 +151,38 @@ class Collection:
         return G
    
     def get_connected_models(self):
-        self.logger.debug("get_connected_models")
+        #self.logger.debug("get_connected_models")
+        for u, v in self.graph.edges():
+            self.graph[u][v]['weight'] = -1
+        
         for c in nx.weakly_connected_components(self.graph):
             self.logger.debug("calculating paths of {0} exons".format(len(c)))
             starts =  [k for k,v in self.graph.in_degree(c).items() if v == 0]
-            self.logger.debug("{0} starts".format(len(starts)))
+            #self.logger.debug("{0} starts".format(len(starts)))
             ends = [k for k,v in self.graph.out_degree(c).items() if v == 0]
-            self.logger.debug("{0} ends".format(len(ends)))
+            #self.logger.debug("{0} ends".format(len(ends)))
             paths = []
             
             for i,s in enumerate(starts):
-                self.logger.debug("{0} out of {1} starts".format(i+ 1, len(starts)))
-                self.logger.debug("Starting at {0} ".format(str(s)))
+                #self.logger.debug("{0} out of {1} starts".format(i+ 1, len(starts)))
+                #self.logger.debug("Starting at {0} ".format(str(s)))
+
+                order,d = nx.bellman_ford(self.graph,s, weight='weight')
+                
                 for e in ends:
-                    for path in nx.all_simple_paths(self.graph, s, e):
-                        self.logger.debug("Adding {0}".format(str(path)))
-                        paths.append(path)
+                    if d.has_key(e): 
+                        path = [e]
+                        x = e
+                        while order[x]:
+                            path.append(order[x])
+                            x = order[x]
+                
+                        paths.append(path[::-1])
+
+                #for e in ends:
+                #    for path in nx.all_simple_paths(self.graph, s, e):
+                #        self.logger.debug("Adding {0}".format(str(path)))
+                #        paths.append(path)
             
             self.logger.debug("yielding {0} paths".format(len(paths)))
             yield paths
@@ -173,6 +191,7 @@ class Collection:
         """ Returns a list of lists of transcripts
         All transcript sharing at least one exon are grouped together
         """
+       
         transcripts = self.get_all_transcripts()
         if len(transcripts ) > 0:
             self.logger.debug("Sorting transcripts ({0})".format(transcripts[0][0].chr))
@@ -261,6 +280,7 @@ class Collection:
             e = "%s:%s-%s" % (vals[0], vals[1], vals[2])
             c = float(vals[3])
             estore[e].stats[name] = c
+            self.graph.node[estore[e]][name] = -c
 
     def get_weight(self, transcript, identifier, idtype):
         if idtype == "all":
@@ -273,6 +293,7 @@ class Collection:
 
 
     def max_weight(self, transcripts, identifier_weight):
+        identifier_weight = []
         
         if len(identifier_weight) == 0:
             w = [len(t) for t in transcripts]    

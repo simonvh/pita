@@ -88,7 +88,7 @@ for d in config["annotation"]:
 
 # data  config
 data = []
-if d.has_key("data") and d["data"]:
+if config.has_key("data") and config["data"]:
     for d in config["data"]:
         logger.debug("data: {0}".format(d))
         d.setdefault("up", 0)
@@ -106,7 +106,7 @@ chroms = chroms.keys()
 #chroms = ["JGIv7b.000000004", "JGIv7b.000087017", "JGIv7b.000012518"]
 #chroms = ["JGIv7b.000000004"]
 #chroms = ["JGIv7b.000287959"]
-chroms = ["JGIv7b.000007440"]
+#chroms = ["JGIv7b.000007440"]
 
 def init_worker():
     signal.signal(signal.SIGINT, signal.SIG_IGN)
@@ -173,18 +173,15 @@ def annotate_chrom(chrom, q, anno_files, data, weight):
 manager = mp.Manager()
 q = manager.Queue()    
 
-CHUNKSIZE = 500
-try:
-    for i in range(0, len(chroms) + 1, CHUNKSIZE):
-    
-        pool = mp.Pool(7, init_worker) 
-        partialAnnotate = partial(annotate_chrom, q=q, anno_files=anno_files, data=data, weight=weight)
-        #put listener to work first
-        watcher = pool.apply_async(listener, (q,[x[0] for x in anno_files], True))
-        pool.map(partialAnnotate, chroms[i: i + CHUNKSIZE]) 
-        q.put('kill')
-        pool.close()
-        pool.join()
+pool = mp.Pool(7, init_worker) 
+try:    
+    partialAnnotate = partial(annotate_chrom, q=q, anno_files=anno_files, data=data, weight=weight)
+    #put listener to work first
+    watcher = pool.apply_async(listener, (q,[x[0] for x in anno_files], False))
+    pool.map(partialAnnotate, chroms) 
+    q.put('kill')
+    pool.close()
+    pool.join()
 except KeyboardInterrupt:
     print "Caught KeyboardInterrupt, terminating workers"
     pool.terminate()

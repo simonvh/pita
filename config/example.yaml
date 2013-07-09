@@ -23,6 +23,9 @@ annotation:
       - name    : mRNA
         path    : xlaevisMRNA.gmap.bed
         type    : bed
+#      - name    : EST
+#        path    : xlaevisEST.gmap.bed
+#        type    : bed
 
 data:
         - name          : H3K4me3
@@ -30,9 +33,9 @@ data:
           feature       : start
           up            : 500
           down          : 500
-#        - name          : RNAseq
-#          path          : RNAseq.merged.bam
-#          feature       : exon
+        - name          : RNAseq
+          path          : Ueno201210_XENLA_st15_trop5_85_paired.accepted_hits.sorted.bam
+          feature       : exon
 #        - name          : H3K4me3.peaks
 #          path          : H3K4me3_peaks.bed
 #          feature       : start
