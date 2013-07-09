@@ -8,8 +8,11 @@ import yaml
 import argparse
 import pysam
 import subprocess
-import multiprocessing
+import pp
 from tempfile import NamedTemporaryFile
+import multiprocessing as mp
+from functools import partial
+import signal
 
 DEFAULT_CONFIG = "pita.yaml"
 VALID_TYPES = ["bed", "gff", "gff3", "gtf"]
@@ -58,6 +61,7 @@ for d in config["annotation"]:
         print "File does not exist: {0}".format(fname)
         sys.exit(1)
     else:
+        logger.info("Preparing {0} for tabix".format(fname))
         tmp = NamedTemporaryFile()
         preset = "gff"
         if t == "bed":
@@ -84,12 +88,13 @@ for d in config["annotation"]:
 
 # data  config
 data = []
-for d in config["data"]:
-    logger.debug("data: {0}".format(d))
-    d.setdefault("up", 0)
-    d.setdefault("down", 0)
-    row = [d["name"], os.path.join(base, d["path"]), d["feature"], (d["up"], d["down"])]
-    data.append(row)
+if config.has_key("data") and config["data"]:
+    for d in config["data"]:
+        logger.debug("data: {0}".format(d))
+        d.setdefault("up", 0)
+        d.setdefault("down", 0)
+        row = [d["name"], os.path.join(base, d["path"]), d["feature"], (d["up"], d["down"])]
+        data.append(row)
 
 weight = {}
 if config.has_key("scoring"):
@@ -97,16 +102,35 @@ if config.has_key("scoring"):
 
 line_format = "{0}\t{1}\t{2}\t{3}\t{4}\t{5}\t{6}\t{7}\t{8}\t{9}\t{10}\t{11}"
 print 'track name="pita_test"'
-#chroms = chroms.keys()
-#chroms = ["JGIv7b.000000004", "JGIv7b.000087017"]
-chroms = ["JGIv7b.000087017"]
+chroms = chroms.keys()
 
-alog = AnnotationLog()
-for name in [x[0] for x in anno_files]:
-    alog.add(name)
+if config.has_key("chromosomes") and config["chromosomes"]:
+    if type(config["chromosomes"]) == type([]):
+        chroms = config["chromosomes"]
+    else:
+        chroms = [config["chromosomes"]]
 
-for chrom in chroms:
-    for genename,exons,cluster in get_chrom_models(chrom, anno_files, data, weight):
+#chroms = ["JGIv7b.000000004", "JGIv7b.000087017", "JGIv7b.000012518"]
+#chroms = ["JGIv7b.000000004"]
+#chroms = ["JGIv7b.000287959"]
+#chroms = ["JGIv7b.000007440"]
+
+def init_worker():
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
+
+def listener(q, names, append=False):
+    '''listens for messages on the q, writes to file. '''
+
+    alog = AnnotationLog(append)
+    for name in names:
+        alog.add(name)
+    
+    while 1:
+        m = q.get()
+        if m == 'kill':
+            break
+       
+        genename, exons,  ev, best_ev, other_ev = m
         chrom = exons[0].chr
         chromStart = exons[0].start
         chromEnd = exons[-1].end
@@ -126,5 +150,46 @@ for chrom in chroms:
                                 sizes, 
                                 starts
                                 )
-        alog.log_to_file(genename, exons, cluster)
-    logger.debug("Finished {0}".format(chrom))
+        alog.log_to_file(genename, exons,  ev, best_ev, other_ev ) 
+
+def annotate_chrom(chrom, q, anno_files, data, weight):
+    logger.info("Chromosome {0} started".format(chrom))
+    for genename,best_exons,other_exons in get_chrom_models(chrom, anno_files, data, weight):
+        ### Ugly logging stuff
+        best_ev = {}
+        for e in best_exons:
+            for ev in set([x.split(":")[0] for x in e.evidence]):
+                best_ev[ev] = best_ev.setdefault(ev, 0) + 1
+        other_ev = {}
+        
+        # Fast way to collapse
+        for e in other_exons:
+            for ev in set([x.split(":")[0] for x in e.evidence]):
+                other_ev[ev] = other_ev.setdefault(ev, 0) + 1
+        ev = []
+        for e in best_exons + other_exons:
+            for evidence in e.evidence:
+                ev.append(evidence.split(":"))
+        
+        ### End ugly logging stuff
+
+        q.put([genename, best_exons, ev, best_ev, other_ev])
+
+    logger.info("Chromosome {0} finished".format(chrom))
+
+manager = mp.Manager()
+q = manager.Queue()    
+
+pool = mp.Pool(7, init_worker) 
+try:    
+    partialAnnotate = partial(annotate_chrom, q=q, anno_files=anno_files, data=data, weight=weight)
+    #put listener to work first
+    watcher = pool.apply_async(listener, (q,[x[0] for x in anno_files], False))
+    pool.map(partialAnnotate, chroms) 
+    q.put('kill')
+    pool.close()
+    pool.join()
+except KeyboardInterrupt:
+    print "Caught KeyboardInterrupt, terminating workers"
+    pool.terminate()
+    pool.join()
