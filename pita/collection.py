@@ -61,13 +61,13 @@ class Collection:
         # Sanity checks
         for e1, e2 in zip(exons[:-1], exons[1:]):
             if e1[0] != e2[0]:
-                sys.stderr.write("{0} - {1}\n" % (e1, e2))
+                sys.stderr.write("{0} - {1}\n".format(e1, e2))
                 raise ValueError, "Different chromosomes!"
-            if e2[1] <= e2[2]:
-                sys.stderr.write("{0} - {1}\n" % (e1, e2))
+            if e2[1] <= e1[2]:
+                sys.stderr.write("{0} - {1}\n".format(e1, e2))
                 raise ValueError, "exons overlap, or in wrong order"
             if e1[3] != e2[3]:
-                sys.stderr.write("{0} - {1}\n" % (e1, e2))
+                sys.stderr.write("{0} - {1}\n".format(e1, e2))
                 raise ValueError, "strands don't match"
         
         # First add all exons

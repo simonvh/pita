@@ -15,6 +15,7 @@ from functools import partial
 import signal
 
 DEFAULT_CONFIG = "pita.yaml"
+DEFAULT_THREADS = 4
 VALID_TYPES = ["bed", "gff", "gff3", "gtf"]
 
 # Setup logging
@@ -31,9 +32,16 @@ p.add_argument("-c",
                default = DEFAULT_CONFIG,
                help="Configuration file (default: {0})".format(DEFAULT_CONFIG)
               )
+p.add_argument("-t",
+               dest= "threads",
+               default = DEFAULT_THREADS,
+               type = int,
+               help="Number of threads (default: {0})".format(DEFAULT_THREADS)
+              )
 
 args = p.parse_args()
 configfile = args.configfile
+threads = args.threads
 
 # Parse YAML config file
 f = open(configfile, "r")
@@ -118,6 +126,28 @@ if config.has_key("chromosomes") and config["chromosomes"]:
 def init_worker():
     signal.signal(signal.SIGINT, signal.SIG_IGN)
 
+def print_output(alog, genename, exons,  ev, best_ev, other_ev):
+    chrom = exons[0].chrom
+    chromStart = exons[0].start
+    chromEnd = exons[-1].end
+    sizes = ",".join([str(exon.end - exon.start) for exon in exons]) + ","
+    starts = ",".join([str(exon.start - chromStart) for exon in exons]) + ","
+    print line_format.format(
+                            chrom, 
+                            chromStart, 
+                            chromEnd, 
+                            genename, 
+                            600, 
+                            exons[0].strand, 
+                            chromStart, 
+                            chromEnd, 
+                            "0,0,0", 
+                            len(exons), 
+                            sizes, 
+                            starts
+                            )
+    alog.log_to_file(genename, exons,  ev, best_ev, other_ev ) 
+
 def listener(q, names, append=False):
     '''listens for messages on the q, writes to file. '''
 
@@ -131,65 +161,38 @@ def listener(q, names, append=False):
             break
        
         genename, exons,  ev, best_ev, other_ev = m
-        chrom = exons[0].chr
-        chromStart = exons[0].start
-        chromEnd = exons[-1].end
-        sizes = ",".join([str(exon.end - exon.start) for exon in exons]) + ","
-        starts = ",".join([str(exon.start - chromStart) for exon in exons]) + ","
-        print line_format.format(
-                                chrom, 
-                                chromStart, 
-                                chromEnd, 
-                                genename, 
-                                600, 
-                                exons[0].strand, 
-                                chromStart, 
-                                chromEnd, 
-                                "0,0,0", 
-                                len(exons), 
-                                sizes, 
-                                starts
-                                )
-        alog.log_to_file(genename, exons,  ev, best_ev, other_ev ) 
+        print_output(alog, genename, exons,  ev, best_ev, other_ev)
 
 def annotate_chrom(chrom, q, anno_files, data, weight):
     logger.info("Chromosome {0} started".format(chrom))
-    for genename,best_exons,other_exons in get_chrom_models(chrom, anno_files, data, weight):
-        ### Ugly logging stuff
-        best_ev = {}
-        for e in best_exons:
-            for ev in set([x.split(":")[0] for x in e.evidence]):
-                best_ev[ev] = best_ev.setdefault(ev, 0) + 1
-        other_ev = {}
-        
-        # Fast way to collapse
-        for e in other_exons:
-            for ev in set([x.split(":")[0] for x in e.evidence]):
-                other_ev[ev] = other_ev.setdefault(ev, 0) + 1
-        ev = []
-        for e in best_exons + other_exons:
-            for evidence in e.evidence:
-                ev.append(evidence.split(":"))
-        
-        ### End ugly logging stuff
-
+    for genename,best_exons, ev, best_ev, other_ev in get_chrom_models(chrom, anno_files, data, weight):
         q.put([genename, best_exons, ev, best_ev, other_ev])
 
     logger.info("Chromosome {0} finished".format(chrom))
 
-manager = mp.Manager()
-q = manager.Queue()    
+if threads > 1:
 
-pool = mp.Pool(7, init_worker) 
-try:    
-    partialAnnotate = partial(annotate_chrom, q=q, anno_files=anno_files, data=data, weight=weight)
-    #put listener to work first
-    watcher = pool.apply_async(listener, (q,[x[0] for x in anno_files], False))
-    pool.map(partialAnnotate, chroms) 
-    q.put('kill')
-    pool.close()
-    pool.join()
-except KeyboardInterrupt:
-    print "Caught KeyboardInterrupt, terminating workers"
-    pool.terminate()
-    pool.join()
+    manager = mp.Manager()
+    q = manager.Queue()    
+
+    pool = mp.Pool(threads, init_worker) 
+    try:    
+        partialAnnotate = partial(annotate_chrom, q=q, anno_files=anno_files, data=data, weight=weight)
+        #put listener to work first
+        watcher = pool.apply_async(listener, (q,[x[0] for x in anno_files], False))
+        pool.map(partialAnnotate, chroms) 
+        q.put('kill')
+        pool.close()
+        pool.join()
+    except KeyboardInterrupt:
+        print "Caught KeyboardInterrupt, terminating workers"
+        pool.terminate()
+        pool.join()
+else:
+    alog = AnnotationLog(append=False)
+    for name in [x[0] for x in anno_files]:
+        alog.add(name)
+    
+    for chrom in chroms:
+        for genename,best_exons, ev, best_ev, other_ev in get_chrom_models(chrom, anno_files, data, weight):
+            print_output(alog, genename,best_exons, ev, best_ev, other_ev)

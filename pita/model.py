@@ -49,5 +49,24 @@ def get_chrom_models(chrom, anno_files, data, weight):
             genename += "X"
         other_exons = [e for e in set(itertools.chain.from_iterable(cluster)) if not e in best_model]  
         del cluster
-        yield genename, best_model, other_exons
+         
+        ### Ugly logging stuff
+        best_ev = {}
+        other_ev = {}
+        for e in best_model:
+            for ev in set([x.split(":")[0] for x in e.evidence]):
+                best_ev[ev] = best_ev.setdefault(ev, 0) + 1
+
+        # Fast way to collapse
+        for e in other_exons:
+            for ev in set([x.split(":")[0] for x in e.evidence]):
+                other_ev[ev] = other_ev.setdefault(ev, 0) + 1
+        ev = []
+        for e in best_model + other_exons:
+            for evidence in e.evidence:
+                ev.append(evidence.split(":"))
+
+        ### End ugly logging stuff
+
+        yield genename, best_model, ev, best_ev, other_ev
 
