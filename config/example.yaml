@@ -1,6 +1,10 @@
 # Path to data files. Data files can be specified relative to this path
 data_path: /home/simon/prj/laevis/annotation/XENLA_JGI7b/pita/data
 
+# Comment to process all chromosomes
+chromosomes:
+        - JGIv7b.000000004
+#        - JGIv7b.000012518
 # Annotation data files
 # Follow the following layout
 # annotation:
@@ -11,9 +15,9 @@ data_path: /home/simon/prj/laevis/annotation/XENLA_JGI7b/pita/data
 #       path        : data/ESTs.gff
 #       type        : bed
 annotation:
-      - name    : cufflinks
-        path    : TairaUeno_XENLA.XENLA_JGIv7b.transcripts.gtf
-        type    : gff
+#      - name    : cufflinks
+#        path    : TairaUeno_XENLA.XENLA_JGIv7b.transcripts.gtf
+#        type    : gff
       - name    : MayBall
         path    : XENLA_2013may.longest_cdna_annot.XENLA_JGIv7b.gmap.bed
         type    : bed

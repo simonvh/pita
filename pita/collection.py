@@ -18,6 +18,8 @@ class Collection:
         # dict with chrom as key
         self.exons = {}
         self.logger = logging.getLogger("pita")
+        
+        # All transcript models will be stored as a directed (acyclic) graph
         self.graph = nx.DiGraph()
 
 
@@ -34,7 +36,7 @@ class Collection:
         if self.exons[chrom].has_key(to_sloc(start, end, strand)):
             return self.exons[chrom][to_sloc(start, end, strand)]
         
-        # Create new exon and return it
+        # Otherwise create new exon and return it
         e = Exon(chrom, start, end, strand)
         self.exons[chrom][to_sloc(start, end, strand)] = e
         return e
@@ -52,104 +54,40 @@ class Collection:
             return exons
 
     def add_transcript(self, name, source, exons):
-        #sys.stderr.write("Adding {0} with {1} exons\n".format(name, len(exons)))
+        """
+        Add a transcript to the collection
+        """
+
+        # Sanity checks
+        for e1, e2 in zip(exons[:-1], exons[1:]):
+            if e1[0] != e2[0]:
+                sys.stderr.write("{0} - {1}\n" % (e1, e2))
+                raise ValueError, "Different chromosomes!"
+            if e2[1] <= e2[2]:
+                sys.stderr.write("{0} - {1}\n" % (e1, e2))
+                raise ValueError, "exons overlap, or in wrong order"
+            if e1[3] != e2[3]:
+                sys.stderr.write("{0} - {1}\n" % (e1, e2))
+                raise ValueError, "strands don't match"
+        
         # First add all exons
         exons = [self.add_exon(*exon) for exon in exons]
         
+        # Add transcript model to the graph
         self.graph.add_path(exons)
+        
+        # Default node weight = 1
         for e in exons:
-            self.graph.node[e]['lala'] = -1
+            self.graph.node[e]['weight'] = 1
 
         [exon.add_evidence(name) for exon in exons]
 
-        # Now add evidence and link them
-        for e1, e2 in zip(exons[0:-1], exons[1:]):
-            try:
-                e1.add_link(e2, name)
-            except:
-                self.logger.warn("Not linking {0} and {1}".format(str(e1), str(e2)))
-    
-    def get_initial_exons(self):
+    def get_initial_exons(self, chrom=None):
         """ Return all leftmost exons
         """
-        return [exon for exon in self.get_exons() if not exon.linked]
+        in_degree = self.graph.in_degree(self.get_exons(chrom)).items()
+        return [k for k,v in in_degree if v == 0]
 
-    def get_paths(self, exon):
-        return [exon.linked_chains(ev) for ev in exon.evidence]
-    
-    def get_transcripts(self):
-        t = []
-        for exon in self.get_initial_exons():
-            for path in self.get_paths(exon):
-                t += path
-        
-        return t
-
-    def extend(self, paths):
-        """Recursively extend transcript to all possible rightmost exons
-        """
-        new_paths = []
-        if len([1 for path in paths if path[-1].get_linked_exons()]) > 0:
-            for path in paths:
-                exons = path[-1].get_linked_exons()
-                if exons:
-                    bla = [path + [exon] for exon in exons]
-                    new_paths += self.extend(bla)
-                else:
-                    new_paths += [path]
-            return new_paths
-        else:
-            return paths
-
-    def get_all_transcripts(self):
-        t = [] 
-        #sys.stderr.write("Initial exons:\n")
-        for exon in self.get_initial_exons():
-            #sys.stderr.write("{0}\n".format(str(exon)))
-            
-            path = [[exon]]
-            t += self.extend(path)
-        
-        #sys.stderr.write("****\n")
-        return t
-
-    def has_overlapping_exon(self, t1, t2):
-        """ Return True if any exon in t1 is identical to any exon in t2
-        """
-        x = t1 + t2
-        if len(set(t1 + t2)) != len(x):
-            return True
-        return False
-
-    def get_overlapping_index(self, cluster, t):
-        """Returns index of list of transcript cluster where an exon in t
-        overlaps with an exon in any transcript of a cluster
-        """
-        for i, c in enumerate(cluster):
-            for t2 in c:
-                if self.has_overlapping_exon(t, t2):
-                #    sys.stderr.write("Yep!\n")
-                    return i
-
-                #else:
-                #    sys.stderr.write("No\n{0}\n{1}!\n".format(t,t2))
-    
-    def get_overlap_index(self, transcripts):
-        m = 0
-        for i, t1 in izip(count(), transcripts[:-1]):
-            m = max([m, t1[-1].end])
-            t2 = transcripts[i + 1]
-            if t1[0].chr != t2[0].chr or t2[0].start > m:
-                return i + 1
-        return len(transcripts)
-            
-    def to_graph(self, l):
-        G = nx.Graph()
-        for part in l:
-            G.add_nodes_from(part)
-            G.add_edges_from(izip(part[0:-1], part[1:]))
-        return G
-   
     def get_connected_models(self):
         #self.logger.debug("get_connected_models")
         for u, v in self.graph.edges():
@@ -179,65 +117,8 @@ class Collection:
                 
                         paths.append(path[::-1])
 
-                #for e in ends:
-                #    for path in nx.all_simple_paths(self.graph, s, e):
-                #        self.logger.debug("Adding {0}".format(str(path)))
-                #        paths.append(path)
-            
             self.logger.debug("yielding {0} paths".format(len(paths)))
             yield paths
-
-    def get_all_transcript_clusters(self):
-        """ Returns a list of lists of transcripts
-        All transcript sharing at least one exon are grouped together
-        """
-       
-        transcripts = self.get_all_transcripts()
-        if len(transcripts ) > 0:
-            self.logger.debug("Sorting transcripts ({0})".format(transcripts[0][0].chr))
-            transcripts = sorted(transcripts, 
-                             lambda x,y: cmp(
-                                            (x[0].chr, x[0].start),
-                                            (y[0].chr, y[0].start)
-                                            )
-                            )
-            self.logger.debug("Done")
-        
-            self.logger.debug("Get overlapping transcripts")
-        
-            #f = open("transcripts.pickle", "w")
-            #pickle.dump(transcripts, f)
-            #f.close()
-            
-            #clusters = []
-            while 1: 
-                self.logger.debug("Overlap of {0}:{1}-{2}, {3} models".format(
-                                                                transcripts[0][0].chr,
-                                                                transcripts[0][0].start,
-                                                                transcripts[1][-1].end,
-                                                                len(transcripts)))
- 
-                overlap_i = self.get_overlap_index(transcripts)
-                self.logger.debug("exon index")
-                e_index = {}
-                for i, t in izip(count(), transcripts[:overlap_i]):
-                    for e in t:
-                        e_index.setdefault(e, []).append(i)
-                
-                self.logger.debug("Building graph")
-                G = self.to_graph(e_index.values())
-                result = connected_components(G)
-                for c in result:
-                    yield [transcripts[x] for x in c]
-                
-
-                del transcripts[:overlap_i]
-                if len(transcripts) == 0:
-                    break
-            self.logger.debug("Done")
-        
-           
-        #return clusters 
 
     def get_read_statistics(self, fname, name, span="exon", extend=(0,0)):
         from fluff.fluffio import get_binned_stats
@@ -257,9 +138,9 @@ class Collection:
             if start < 0:
                 start = 0
             
-            estore["%s:%s-%s" % (exon.chr, start, end)] = exon
+            estore["%s:%s-%s" % (exon.chrom, start, end)] = exon
             tmp.write("%s\t%s\t%s\t%s\t%s\t%s\n" % (
-                exon.chr,
+                exon.chrom,
                 start,
                 end,
                 str(exon),

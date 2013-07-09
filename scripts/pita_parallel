@@ -103,6 +103,13 @@ if config.has_key("scoring"):
 line_format = "{0}\t{1}\t{2}\t{3}\t{4}\t{5}\t{6}\t{7}\t{8}\t{9}\t{10}\t{11}"
 print 'track name="pita_test"'
 chroms = chroms.keys()
+
+if config.has_key("chromosomes") and config["chromosomes"]:
+    if type(config["chromosomes"]) == type([]):
+        chroms = config["chromosomes"]
+    else:
+        chroms = [config["chromosomes"]]
+
 #chroms = ["JGIv7b.000000004", "JGIv7b.000087017", "JGIv7b.000012518"]
 #chroms = ["JGIv7b.000000004"]
 #chroms = ["JGIv7b.000287959"]

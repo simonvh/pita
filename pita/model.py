@@ -29,7 +29,7 @@ def get_chrom_models(chrom, anno_files, data, weight):
         
         best_model = mc.max_weight(cluster, weight)
         genename = "{0}:{1}-{2}_".format(
-                                        best_model[0].chr,
+                                        best_model[0].chrom,
                                         best_model[0].start,
                                         best_model[-1].end,
                                         )
