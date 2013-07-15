@@ -88,6 +88,9 @@ def read_bed_transcripts(fobj, fname="", min_exons=1):
                 if int(vals[9]) > 1:
                     sizes = [int(x) for x in vals[10].split(",")[:-1]]
                     starts = [int(x) for x in vals[11].split(",")[:-1]] 
+                    
+                    starts, sizes = merge_exons(starts, sizes)
+                    
                     i = 1
                     name = "%s_%s_%s" % (vals[0], vals[3], i)
                     while names.has_key(name):
