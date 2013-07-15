@@ -53,11 +53,11 @@ def two_transcripts():
     return transcripts
 
 def test_create_collection():
-    from pita.collection2 import Collection
+    from pita.collection import Collection
     c = Collection()
 
 def test_add_exon():
-    from pita.collection2 import Collection
+    from pita.collection import Collection
     c = Collection()
     e = c.add_exon("chr1", 100, 200, "-")
     assert "chr1:100-200" == str(e)
@@ -65,7 +65,7 @@ def test_add_exon():
     assert "chr1:100-200" == str(e)
 
 def test_get_exons(three_exons):
-    from pita.collection2 import Collection
+    from pita.collection import Collection
     c = Collection()
     for e in three_exons:
         print e
@@ -76,7 +76,7 @@ def test_get_exons(three_exons):
     assert 1 == len(c.get_exons("chr2"))
 
 def test_add_transcripts(three_transcripts):
-    from pita.collection2 import Collection
+    from pita.collection import Collection
     c = Collection()
     for name, source, exons in three_transcripts:
         c.add_transcript(name, source, exons)
@@ -84,7 +84,7 @@ def test_add_transcripts(three_transcripts):
     assert 5 == len(c.get_exons())
 
 def test_get_initial_exons(three_transcripts):
-    from pita.collection2 import Collection
+    from pita.collection import Collection
     c = Collection()
     for name, source, exons in three_transcripts:
         c.add_transcript(name, source, exons)
@@ -92,7 +92,7 @@ def test_get_initial_exons(three_transcripts):
     assert 2 == len(c.get_initial_exons())
  
 def test_retrieve_transcripts(three_transcripts):
-    from pita.collection2 import Collection
+    from pita.collection import Collection
     c = Collection()
     for name, source, exons in three_transcripts:
         c.add_transcript(name, source, exons)
@@ -100,12 +100,12 @@ def test_retrieve_transcripts(three_transcripts):
     assert 4 == len(c.get_all_transcripts())
  
 def test_retrieve_transcripts(three_transcripts, two_transcripts):
-    from pita.collection2 import Collection
+    from pita.collection import Collection
     c = Collection()
     for name, source, exons in three_transcripts + two_transcripts:
         c.add_transcript(name, source, exons)
 
-    clusters = sorted(c.get_all_transcript_clusters(), lambda x,y: cmp(len(x), len(y)))
+    clusters = sorted(c.get_connected_models(), lambda x,y: cmp(len(x), len(y)))
     assert 2 == len(clusters)
     assert 1 == len(clusters[0])
     assert 4 == len(clusters[1])

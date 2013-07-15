@@ -5,12 +5,34 @@ import sys
 import logging 
 
 
-def merge_exons(exons):
-    return exons
-    if not 0 in [e2.start - e1.end for e1,e2 in zip(exons[0:-1], exons[1:])]:
-        return exons
-    new_exons = []
-    #for e2, e1
+def merge_exons(starts, sizes):
+    merge = []
+    for i, (start1, start2, size) in enumerate(zip(starts[:-1], starts[1:], sizes[:-1])):
+        if start1 + size >= start2:
+            merge.append(i + 1)
+    
+    if len(merge) == 0:
+        return starts, sizes
+   
+    i = len(starts) - 1
+    new_starts = []
+    new_sizes = []
+    
+    while i >= 0:
+        if i in merge:
+            j = i - 1
+            while j in merge:
+                j -= 1
+            new_starts.append(starts[j])
+            new_sizes.append(starts[i] - starts[j] + sizes[i])
+            
+            i = j - 1
+        else:
+            new_starts.append(starts[i])
+            new_sizes.append(sizes[i])
+            i -= 1
+    
+    return new_starts[::-1], new_sizes[::-1]
 
 def _gff_type_iterator(feature, ftypes):
     if feature.type in ftypes:
@@ -43,6 +65,7 @@ def read_gff_transcripts(fobj, fname="", min_exons=1):
                     end = int(exon.location.end.position)
                     strand = smap[exon.strand]
                     exons.append([chrom, start, end, strand])
+                logger.debug("{0}: {1} - {2} exons".format(fname, gene.id, len(exons)))
                 if len(exons) >= min_exons:
                     transcripts.append([gene.id, fname, exons])
 
