@@ -94,7 +94,7 @@ class Collection:
             self.graph[u][v]['weight'] = -1
         
         for c in nx.weakly_connected_components(self.graph):
-            self.logger.debug("calculating paths of {0} exons".format(len(c)))
+            #self.logger.debug("calculating paths of {0} exons".format(len(c)))
             starts =  [k for k,v in self.graph.in_degree(c).items() if v == 0]
             #self.logger.debug("{0} starts".format(len(starts)))
             ends = [k for k,v in self.graph.out_degree(c).items() if v == 0]
@@ -102,6 +102,7 @@ class Collection:
             paths = []
             
             for i,s in enumerate(starts):
+                
                 #self.logger.debug("{0} out of {1} starts".format(i+ 1, len(starts)))
                 #self.logger.debug("Starting at {0} ".format(str(s)))
 
@@ -117,7 +118,10 @@ class Collection:
                 
                         paths.append(path[::-1])
 
-            self.logger.debug("yielding {0} paths".format(len(paths)))
+            if len(paths) > 0:
+                self.logger.debug("yielding {0} paths".format(len(paths)))
+                #for path in paths:
+                #    self.logger.debug("{0}".format(path))
             yield paths
 
     def get_read_statistics(self, fname, name, span="exon", extend=(0,0)):
@@ -156,6 +160,8 @@ class Collection:
         
         result = get_binned_stats(tmp.name, fname, 1, rpkm=False, rmdup=True, rmrepeats=rmrepeats)
         
+        tmp.close()
+        
         for row in result:
             vals = row.strip().split("\t")
             e = "%s:%s-%s" % (vals[0], vals[1], vals[2])
@@ -165,7 +171,10 @@ class Collection:
 
     def get_weight(self, transcript, identifier, idtype):
         if idtype == "all":
-            return sum([exon.stats.setdefault(identifier, 0) for exon in transcript])
+            total_exon_length = sum([e.end - e.start for e in transcript])
+            total_signal = sum([e.stats.setdefault(identifier, 0) for e in transcript])
+            return float(total_signal) / total_exon_length
+
         elif idtype == "first":
             if transcript[0].strand == "+":
                 return transcript[0].stats.setdefault(identifier,0)
@@ -174,7 +183,7 @@ class Collection:
 
 
     def max_weight(self, transcripts, identifier_weight):
-        identifier_weight = []
+        #identifier_weight = []
         
         if len(identifier_weight) == 0:
             w = [len(t) for t in transcripts]    
@@ -189,7 +198,13 @@ class Collection:
                 
                 idw = []
                 for transcript in transcripts:
-                    idw.append(pseudo + self.get_weight(transcript, identifier, idtype))
+                   tw = self.get_weight(transcript, identifier, idtype)
+                   self.logger.debug("{0} - {1} - {2}".format(
+                                                             transcript[0],
+                                                             identifier,
+                                                             tw
+                                                             ))
+                   idw.append(pseudo + tw)
     
                 idw = numpy.array(idw)
                 idw = idw / max(idw) * weight
