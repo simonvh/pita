@@ -3,8 +3,11 @@ from pita.io import TabixIteratorAsFile, read_gff_transcripts, read_bed_transcri
 import logging
 import pysam
 import itertools
+import sys
 
 def get_chrom_models(chrom, anno_files, data, weight):
+    sep = ":::"
+    
     logger = logging.getLogger("pita")
     
     # Read annotation files
@@ -19,14 +22,16 @@ def get_chrom_models(chrom, anno_files, data, weight):
             elif ftype in ["gff", "gtf", "gff3"]:
                 it = read_gff_transcripts(fobj, fname, 3)
             for tname, source, exons in it:
-                mc.add_transcript("{0}:{1}".format(name, tname), source, exons)
+                mc.add_transcript("{0}{1}{2}".format(name, sep, tname), source, exons)
+        tabixfile.close()
 
     for name, fname, span, extend in data:
         logger.debug("Reading data {0} from {1}".format(name, fname))
         mc.get_read_statistics(fname, name=name, span=span, extend=extend)
 
     for cluster in mc.get_connected_models():
-        
+        if len(cluster) == 0:
+            continue
         best_model = mc.max_weight(cluster, weight)
         genename = "{0}:{1}-{2}_".format(
                                         best_model[0].chrom,
@@ -42,8 +47,8 @@ def get_chrom_models(chrom, anno_files, data, weight):
             genename += "X"
 
         abs_x = mc.get_weight(best_model, "RNAseq", "all") 
-        x = abs_x / (sum([e.end - e.start for e in best_model]) / 1000.0)
-        if x > 5:
+        x = abs_x / 41000.0  # RPKM for now CHANGE THIS!
+        if x >= 1:
             genename += "V"
         else:
             genename += "X"
@@ -54,19 +59,19 @@ def get_chrom_models(chrom, anno_files, data, weight):
         best_ev = {}
         other_ev = {}
         for e in best_model:
-            for ev in set([x.split(":")[0] for x in e.evidence]):
+            for ev in set([x.split(sep)[0] for x in e.evidence]):
                 best_ev[ev] = best_ev.setdefault(ev, 0) + 1
 
         # Fast way to collapse
         for e in other_exons:
-            for ev in set([x.split(":")[0] for x in e.evidence]):
+            for ev in set([x.split(sep)[0] for x in e.evidence]):
                 other_ev[ev] = other_ev.setdefault(ev, 0) + 1
         ev = []
         for e in best_model + other_exons:
             for evidence in e.evidence:
-                ev.append(evidence.split(":"))
+                ev.append(evidence.split(sep))
 
         ### End ugly logging stuff
-
+        logger.debug("Best model: {0} with {1} exons".format(genename, len(best_model)))
         yield genename, best_model, ev, best_ev, other_ev
 
