@@ -7,8 +7,11 @@ At the moment, it's still a mess. It will be updated to annotate the Xenopus lae
 
 Prerequisites
 ------------
+The following Python modules are required:
 * GFF parser - http://github.com/chapmanb/bcbb/tree/master/gff
 * Biopython - http://biopython.org/
+* pyyaml
+* networkx
 
 Installation
 ------------
