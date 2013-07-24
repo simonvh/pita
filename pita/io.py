@@ -4,7 +4,6 @@ import pprint
 import sys
 import logging 
 
-
 def merge_exons(starts, sizes):
     merge = []
     for i, (start1, start2, size) in enumerate(zip(starts[:-1], starts[1:], sizes[:-1])):

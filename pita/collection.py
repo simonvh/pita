@@ -124,12 +124,13 @@ class Collection:
                 #    self.logger.debug("{0}".format(path))
             yield paths
 
-    def get_read_statistics(self, fname, name, span="exon", extend=(0,0)):
+    def get_read_statistics(self, fnames, name, span="exon", extend=(0,0)):
         from fluff.fluffio import get_binned_stats
         from tempfile import NamedTemporaryFile
 
         tmp = NamedTemporaryFile()
         estore = {}
+        self.logger.debug("Writing exons to file")
         for exon in self.get_exons():
             start = exon.start
             end = exon.end
@@ -153,27 +154,77 @@ class Collection:
             ))
         tmp.flush()
 
-        if fname.endswith("bam"):
-            rmrepeats = True
-        else:
-            rmrepeats = False
+        if type("") == type(fnames):
+            fnames = [fnames]
         
-        result = get_binned_stats(tmp.name, fname, 1, rpkm=False, rmdup=True, rmrepeats=rmrepeats)
+        for fname in fnames:
+            if fname.endswith("bam"):
+                rmrepeats = True
+            else:
+                rmrepeats = False
+            
+            self.logger.debug("Getting overlap from {0}".format(fname))
+            result = get_binned_stats(tmp.name, fname, 1, rpkm=False, rmdup=True, rmrepeats=rmrepeats)
         
+            self.logger.debug("Reading results, save to exon stats")
+        
+            for row in result:
+                vals = row.strip().split("\t")
+                e = "%s:%s-%s" % (vals[0], vals[1], vals[2])
+                c = float(vals[3])
+                estore[e].stats[name] = estore[e].stats.setdefault(name, 0) + c
+                self.graph.node[estore[e]][name] = -estore[e].stats[name]
+            
         tmp.close()
+
+    def get_splice_statistics(self, fnames, name):
+        if type("") == type(fnames):
+            fnames = [fnames]
         
-        for row in result:
-            vals = row.strip().split("\t")
-            e = "%s:%s-%s" % (vals[0], vals[1], vals[2])
-            c = float(vals[3])
-            estore[e].stats[name] = c
-            self.graph.node[estore[e]][name] = -c
+        nrsplice = {}
+        for fname in fnames:
+            for line in open(fname):
+                vals = line.strip().split("\t")
+                chrom = vals[0]
+                start,end,count = [int(x) for x in vals[1:]]
+                
+                if not nrsplice.has_key(chrom):
+                    nrsplice[chrom] = {}
+            
+                if not nrsplice[chrom].has_key(start):
+                    nrsplice[chrom][start] = {}
+        
+                nrsplice[chrom][start][end] =  nrsplice[chrom][start].setdefault(end, 0) +  count
+        
+        #print nrsplice[scaffold_1][
+        for exon in self.get_exons():
+            splice_start = exon.end
+            exon.stats[name] = {}
+            if nrsplice.has_key(exon.chrom):
+                for end, count in nrsplice[exon.chrom].setdefault(splice_start, {}).items():
+                    exon.stats[name][end] = count
+                #print exon, exon.stats[name]
 
     def get_weight(self, transcript, identifier, idtype):
         if idtype == "all":
             total_exon_length = sum([e.end - e.start for e in transcript])
             total_signal = sum([e.stats.setdefault(identifier, 0) for e in transcript])
-            return float(total_signal) / total_exon_length
+            return float(total_signal) / total_exon_length * len(transcript)
+
+        if idtype == "mean_exon":
+            all_exons = [e.stats.setdefault(identifier, 0) / (e.end - e.start) for e in transcript]
+            return mean(all_exons)
+
+        if idtype == "total_rpkm":
+            all_exons = [e.stats.setdefault(identifier, 0) / (e.end - e.start) for e in transcript]
+            return sum(all_exons)
+        if idtype == "splice":
+            #self.logger.debug("SPLICE!")
+            w = 0.0
+            for e1, e2 in zip(transcript[:-1], transcript[1:]):
+                w += e1.stats[identifier].setdefault(e2.start, 0)
+            #self.logger.debug("Weight: {0}".format(w))
+            return w
 
         elif idtype == "first":
             if transcript[0].strand == "+":
@@ -181,11 +232,10 @@ class Collection:
             else:
                 return transcript[-1].stats.setdefault(identifier,0)
 
-
     def max_weight(self, transcripts, identifier_weight):
         #identifier_weight = []
         
-        if len(identifier_weight) == 0:
+        if not identifier_weight or len(identifier_weight) == 0:
             w = [len(t) for t in transcripts]    
             #sys.stderr.write("weights: {0}".format(w))
         else:
