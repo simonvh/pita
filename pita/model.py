@@ -52,9 +52,9 @@ def get_chrom_models(chrom, anno_files, data, weight):
         else:
             genename += "X"
        
-        w = mc.get_weight(best_model, "H3K4me3", "first")
-        logger.debug("{0}: H3K4me3: {1}".format(genename, w)) 
-        if w > 50:
+        rpkm = mc.get_weight(best_model, "H3K4me3", "first")
+        logger.debug("{0}: H3K4me3: {1}".format(genename, rpkm)) 
+        if rpkm >= 1:
             genename += "V"
         else:
             genename += "X"
