@@ -46,9 +46,8 @@ def get_chrom_models(chrom, anno_files, data, weight):
                                         best_model[-1].end,
                                         )
         
-        abs_x = mc.get_weight(best_model, "RNAseq", "all") 
-        x = abs_x / 393.3 * 1000.0  # RPKM for now CHANGE THIS!
-        if x >= 1:
+        rpkm = mc.get_weight(best_model, "RNAseq", "rpkm") 
+        if rpkm >= 1:
             genename += "V"
         else:
             genename += "X"

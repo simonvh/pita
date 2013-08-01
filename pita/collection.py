@@ -1,4 +1,5 @@
 from pita.exon import *
+from pita.util import read_statistics
 import numpy
 import sys
 import logging
@@ -22,6 +23,11 @@ class Collection:
         # All transcript models will be stored as a directed (acyclic) graph
         self.graph = nx.DiGraph()
 
+        # Store read counts of BAM files
+        self.nreads = {}
+        
+        # Store extension used in BAM statistics
+        self.extend = {}
 
     def add_exon(self, chrom, start, end, strand):
         """ 
@@ -128,6 +134,8 @@ class Collection:
         from fluff.fluffio import get_binned_stats
         from tempfile import NamedTemporaryFile
 
+
+        self.extend[name] = extend
         tmp = NamedTemporaryFile()
         estore = {}
         self.logger.debug("Writing exons to file")
@@ -156,10 +164,14 @@ class Collection:
 
         if type("") == type(fnames):
             fnames = [fnames]
-        
+       
+        if not self.nreads.has_key(name):
+            self.nreads[name] = 0
+
         for fname in fnames:
             if fname.endswith("bam"):
                 rmrepeats = True
+                self.nreads[name] += read_statistics(fname) 
             else:
                 rmrepeats = False
             
@@ -207,18 +219,28 @@ class Collection:
 
     def get_weight(self, transcript, identifier, idtype):
         if idtype == "all":
+            total_signal = sum([e.stats.setdefault(identifier, 0) for e in transcript])
+            return float(total_signal)
+        
+        elif idtype == "rpkm":
+            total_exon_length = sum([e.end - e.start for e in transcript])
+            total_signal = sum([e.stats.setdefault(identifier, 0) for e in transcript])
+            return float(total_signal) / (self.nreads[identifier] / 1e6) / total_exon_length * 1000.0 
+
+        elif idtype == "weighted":
             total_exon_length = sum([e.end - e.start for e in transcript])
             total_signal = sum([e.stats.setdefault(identifier, 0) for e in transcript])
             return float(total_signal) / total_exon_length * len(transcript)
 
-        if idtype == "mean_exon":
+        elif idtype == "mean_exon":
             all_exons = [e.stats.setdefault(identifier, 0) / (e.end - e.start) for e in transcript]
             return mean(all_exons)
 
-        if idtype == "total_rpkm":
+        elif idtype == "total_rpkm":
             all_exons = [e.stats.setdefault(identifier, 0) / (e.end - e.start) for e in transcript]
-            return sum(all_exons)
-        if idtype == "splice":
+            return sum(all_exons) 
+        
+        elif idtype == "splice":
             #self.logger.debug("SPLICE!")
             w = 0.0
             for e1, e2 in zip(transcript[:-1], transcript[1:]):
@@ -231,6 +253,20 @@ class Collection:
                 return transcript[0].stats.setdefault(identifier,0)
             else:
                 return transcript[-1].stats.setdefault(identifier,0)
+
+        elif idtype == "first_rpkm":
+            if transcript[0].strand == "+":
+                exon = stranscript[0]
+            else:
+                exon = stranscript[-1]
+
+            size = exon.end - exon.starts
+            size += self.extend[identifier][0] +  self.extend[identifier][1]
+            count = exon.stats.setdefault(identifier,0)
+            rpkm = count / (self.nreads[identifier] / 1e6) / size * 1000.0
+            
+            return rpkm  
+        
 
     def max_weight(self, transcripts, identifier_weight):
         #identifier_weight = []
