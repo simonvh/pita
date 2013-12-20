@@ -21,3 +21,16 @@ def read_statistics(fname, rmrepeat=False, rmdup=False, mapped=False):
 
     return n
 
+def get_overlapping_models(exons):
+    overlap = []
+    sorted_exons = sorted(exons, cmp=lambda x,y: cmp(x.start, y.start))
+    
+    for i, exon in enumerate(sorted_exons):
+        j = i + 1
+        while j < len(sorted_exons) and sorted_exons[j].start <= exon.end:
+            if exon.overlap(sorted_exons[j]):
+                overlap.append([exon, sorted_exons[j]])
+            j += 1
+    
+    return len(overlap)
+

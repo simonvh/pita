@@ -22,3 +22,12 @@ class Exon:
     def add_evidence(self, ev):
         if not ev in self.evidence:
             self.evidence.append(ev)
+    
+    def overlap(self, exon, strand=True, fraction=False):
+        if strand and self.strand != exon.strand:
+            return 0
+        if exon.start >= self.start and exon.start <= self.end:
+            return self.end - exon.start
+        if exon.end >= self.start and exon.end <= self.end:
+            return exon.end - self.start
+        return 0
