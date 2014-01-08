@@ -127,6 +127,7 @@ class Collection:
         pruned = []
 
         for i,cluster in enumerate(self.get_connected_models()):
+            self.logger.debug("Pruning {0} models".format(len(clusters)))
             #print i + 1
             
             discard = []
