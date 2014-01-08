@@ -14,6 +14,29 @@ def to_loc(chrom, start, end, strand):
 def to_sloc(start, end, strand):
     return "{0}{2}{1}".format(start, end, strand)
 
+def connected_models(graph):
+    for u, v in graph.edges():
+        graph[u][v]['weight'] = -1
+    
+    for c in nx.weakly_connected_components(graph):
+        starts =  [k for k,v in graph.in_degree(c).items() if v == 0]
+        ends = [k for k,v in graph.out_degree(c).items() if v == 0]
+        paths = []
+        
+        for i,s in enumerate(starts):
+            order,d = nx.bellman_ford(graph,s, weight='weight')
+            
+            for e in ends:
+                if d.has_key(e): 
+                    path = [e]
+                    x = e
+                    while order[x]:
+                        path.append(order[x])
+                        x = order[x]
+            
+                    paths.append(path[::-1])
+        yield paths
+
 class Collection:
     def __init__(self):
         # dict with chrom as key
@@ -95,40 +118,58 @@ class Collection:
         return [k for k,v in in_degree if v == 0]
 
     def get_connected_models(self):
-        #self.logger.debug("get_connected_models")
-        for u, v in self.graph.edges():
-            self.graph[u][v]['weight'] = -1
-        
-        for c in nx.weakly_connected_components(self.graph):
-            #self.logger.debug("calculating paths of {0} exons".format(len(c)))
-            starts =  [k for k,v in self.graph.in_degree(c).items() if v == 0]
-            #self.logger.debug("{0} starts".format(len(starts)))
-            ends = [k for k,v in self.graph.out_degree(c).items() if v == 0]
-            #self.logger.debug("{0} ends".format(len(ends)))
-            paths = []
-            
-            for i,s in enumerate(starts):
-                
-                #self.logger.debug("{0} out of {1} starts".format(i+ 1, len(starts)))
-                #self.logger.debug("Starting at {0} ".format(str(s)))
-
-                order,d = nx.bellman_ford(self.graph,s, weight='weight')
-                
-                for e in ends:
-                    if d.has_key(e): 
-                        path = [e]
-                        x = e
-                        while order[x]:
-                            path.append(order[x])
-                            x = order[x]
-                
-                        paths.append(path[::-1])
-
+        for paths in connected_models(self.graph):
             if len(paths) > 0:
                 self.logger.debug("yielding {0} paths".format(len(paths)))
-                #for path in paths:
-                #    self.logger.debug("{0}".format(path))
             yield paths
+    
+    def prune(self):
+        pruned = []
+
+        for i,cluster in enumerate(self.get_connected_models()):
+            #print i + 1
+            
+            discard = []
+            new_cluster = [m for m in cluster]
+            
+            while len(new_cluster) > 0:
+                #print len(new_cluster)
+                #c_min = min([m[0].start for m in new_cluster])
+                #c_max = max([m[-1].end for m in new_cluster])
+                #print c_min, c_max
+                #selection = [m for m in new_cluster if m[0].start == c_min or m[-1].end == c_max]
+                
+                longest = sorted(new_cluster, cmp=lambda x,y: cmp(x[-1].end - x[0].start, y[-1].end - y[0].start))[-1]
+                discard.append(longest)
+                new_cluster = [m for m in new_cluster if m != longest]
+                if len(new_cluster) != 0:
+                    
+                    graph = nx.DiGraph()
+                    for m in new_cluster:
+                        graph.add_path(m)
+                    
+                    result = [x for x in connected_models(graph) if len([y for y in x if len(y) > 2]) > 1]
+                    if len(result) > 1:
+                        break
+            
+            if len(new_cluster) != 0:
+                #print len(new_cluster)
+                discard_edges = []
+                for m in discard:
+                    for e1, e2 in zip(m[:-1], m[1:]):
+                        discard_edges.append((e1, e2))
+                
+                keep_edges = []
+                for m in new_cluster:
+                    for e1, e2 in zip(m[:-1], m[1:]):
+                        keep_edges.append((e1, e2))
+
+                for x in set(discard_edges) - set(keep_edges):
+                    self.graph.remove_edge(x[0], x[1])
+
+                    pruned.append([x[0].chrom, x[0].end, x[1].start])
+        
+        return pruned
 
     def get_read_statistics(self, fnames, name, span="exon", extend=(0,0)):
         from fluff.fluffio import get_binned_stats
