@@ -134,7 +134,6 @@ class Collection:
         from fluff.fluffio import get_binned_stats
         from tempfile import NamedTemporaryFile
 
-
         self.extend[name] = extend
         tmp = NamedTemporaryFile()
         estore = {}
@@ -256,13 +255,13 @@ class Collection:
 
         elif idtype == "first_rpkm":
             if transcript[0].strand == "+":
-                exon = stranscript[0]
+                exon = transcript[0]
             else:
-                exon = stranscript[-1]
+                exon = transcript[-1]
 
-            size = exon.end - exon.starts
+            size = exon.end - exon.start
             size += self.extend[identifier][0] +  self.extend[identifier][1]
-            count = exon.stats.setdefault(identifier,0)
+            count = exon.stats.setdefault(identifier, 0)
             rpkm = count / (self.nreads[identifier] / 1e6) / size * 1000.0
             
             return rpkm  

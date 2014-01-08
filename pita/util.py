@@ -32,5 +32,5 @@ def get_overlapping_models(exons):
                 overlap.append([exon, sorted_exons[j]])
             j += 1
     
-    return len(overlap)
+    return overlap
 

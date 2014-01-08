@@ -80,6 +80,7 @@ def read_bed_transcripts(fobj, fname="", min_exons=1):
     line = fobj.readline()
     while line:
         if not line.startswith("track"):
+            #logger.debug(line)
             try:
                 vals = line.strip().split("\t")
                 # More than one exon
