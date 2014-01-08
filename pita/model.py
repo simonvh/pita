@@ -48,7 +48,6 @@ def get_chrom_models(chrom, anno_files, data, weight):
         for cluster in mc.get_connected_models():
             while len(cluster) > 0:
                 best_model = mc.max_weight(cluster, weight)
-                    continue
                 genename = "{0}:{1}-{2}_".format(
                                             best_model[0].chrom,
                                             best_model[0].start,
@@ -70,9 +69,7 @@ def get_chrom_models(chrom, anno_files, data, weight):
     
                 other_exons = [e for e in set(itertools.chain.from_iterable(cluster)) if not e in best_model]  
                 for i in range(len(cluster) - 1, -1, -1):
-                    if cluster[i][0].start > best_model[0].start and cluster[i][0].start < best_model[-1].end:
-                        del cluster[i]
-                    elif cluster[i][0].end > best_model[0].start and cluster[i][0].end < best_model[-1].end:
+                    if cluster[i][0].start <= best_model[-1].end and cluster[i][-1].end >= best_model[0].start:
                         del cluster[i]
                     
                 ### Ugly logging stuff
