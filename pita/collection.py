@@ -127,7 +127,7 @@ class Collection:
         pruned = []
 
         for i,cluster in enumerate(self.get_connected_models()):
-            self.logger.debug("Pruning {0} models".format(len(clusters)))
+            self.logger.debug("Pruning {0} models".format(len(cluster)))
             #print i + 1
             
             discard = []
@@ -337,6 +337,7 @@ class Collection:
                 idw = idw / max(idw) * weight
                 #sys.stderr.write("Adding {0}\n".format(idw))
                 w = w + idw
+        
         return transcripts[numpy.argmax(w)]
 
 def get_updated_exons(model, name):
