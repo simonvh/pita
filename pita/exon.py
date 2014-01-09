@@ -9,6 +9,7 @@ class Exon:
         self.evidence = []
         self.validated = False
         self.stats = {}
+        self.seq = None
 
     def __nonzero__(self):
         return 1

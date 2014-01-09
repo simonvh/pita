@@ -38,10 +38,16 @@ p.add_argument("-t",
                type = int,
                help="Number of threads (default: {0})".format(DEFAULT_THREADS)
               )
+p.add_argument("-i",
+               dest= "index_dir",
+               default = None,
+               help="Genome index dir"
+              )
 
 args = p.parse_args()
 configfile = args.configfile
 threads = args.threads
+index = args.index_dir
 
 # Parse YAML config file
 f = open(configfile, "r")
@@ -51,6 +57,11 @@ config = yaml.load(f)
 base = "."
 if config.has_key("data_path"):
     base = config["data_path"]
+
+
+prune = None
+if config.has_key("prune_overlap"):
+    prune = config["prune_overlap"]
 
 if not config.has_key("annotation") or len(config["annotation"]) == 0:
     print "No annotation files specified."
@@ -123,11 +134,6 @@ if config.has_key("chromosomes") and config["chromosomes"]:
     else:
         chroms = [config["chromosomes"]]
 
-#chroms = ["JGIv7b.000000004", "JGIv7b.000087017", "JGIv7b.000012518"]
-#chroms = ["JGIv7b.000000004"]
-#chroms = ["JGIv7b.000287959"]
-#chroms = ["JGIv7b.000007440"]
-
 def init_worker():
     signal.signal(signal.SIGINT, signal.SIG_IGN)
 
@@ -169,9 +175,9 @@ def listener(q, names, append=False):
         logger.debug("calling print_output for {0}".format(genename))
         print_output(alog, genename, exons,  ev, best_ev, other_ev)
 
-def annotate_chrom(chrom, q, anno_files, data, weight):
+def annotate_chrom(chrom, q, anno_files, data, weight, prune, index):
     logger.info("Chromosome {0} started".format(chrom))
-    for genename, best_exons, ev, best_ev, other_ev in get_chrom_models(chrom, anno_files, data, weight):
+    for genename, best_exons, ev, best_ev, other_ev in get_chrom_models(chrom, anno_files, data, weight, prune, index):
         logger.debug("Putting {0} in print queue".format(genename))
         q.put([genename, best_exons, ev, best_ev, other_ev])
 
@@ -184,7 +190,7 @@ if threads > 1:
 
     pool = mp.Pool(threads, init_worker) 
     try:    
-        partialAnnotate = partial(annotate_chrom, q=q, anno_files=anno_files, data=data, weight=weight)
+        partialAnnotate = partial(annotate_chrom, q=q, anno_files=anno_files, data=data, weight=weight, prune=prune, index=index)
         #put listener to work first
         watcher = pool.apply_async(listener, (q,[x[0] for x in anno_files], False))
         pool.map(partialAnnotate, chroms) 
@@ -201,5 +207,5 @@ else:
         alog.add(name)
     
     for chrom in chroms:
-        for genename,best_exons, ev, best_ev, other_ev in get_chrom_models(chrom, anno_files, data, weight):
+        for genename,best_exons, ev, best_ev, other_ev in get_chrom_models(chrom, anno_files, data, weight, prune, index):
             print_output(alog, genename,best_exons, ev, best_ev, other_ev)

@@ -1,5 +1,6 @@
 from pita.exon import *
 from pita.util import read_statistics
+from pita.util import longest_orf
 import numpy
 import sys
 import logging
@@ -7,6 +8,8 @@ import pickle
 from networkx.algorithms.components.connected import connected_components
 import networkx as nx 
 from itertools import izip, count
+from gimmemotifs.genome_index import GenomeIndex
+
 
 def to_loc(chrom, start, end, strand):
     return "{0}:{1}{3}{2}".format(chrom, start, end, strand)
@@ -38,7 +41,7 @@ def connected_models(graph):
         yield paths
 
 class Collection:
-    def __init__(self):
+    def __init__(self, index=None):
         # dict with chrom as key
         self.exons = {}
         self.logger = logging.getLogger("pita")
@@ -51,6 +54,11 @@ class Collection:
         
         # Store extension used in BAM statistics
         self.extend = {}
+
+        if index:
+            self.index = GenomeIndex(index)
+        else:
+            self.index = None
 
     def add_exon(self, chrom, start, end, strand):
         """ 
@@ -67,6 +75,10 @@ class Collection:
         
         # Otherwise create new exon and return it
         e = Exon(chrom, start, end, strand)
+        
+        if self.index:
+            e.seq = self.index.get_sequence(chrom, start, end, strand)
+        
         self.exons[chrom][to_sloc(start, end, strand)] = e
         return e
 
@@ -282,11 +294,9 @@ class Collection:
             return sum(all_exons) 
         
         elif idtype == "splice":
-            #self.logger.debug("SPLICE!")
             w = 0.0
             for e1, e2 in zip(transcript[:-1], transcript[1:]):
                 w += e1.stats[identifier].setdefault(e2.start, 0)
-            #self.logger.debug("Weight: {0}".format(w))
             return w
 
         elif idtype == "first":
@@ -308,6 +318,13 @@ class Collection:
             
             return rpkm  
         
+        elif idtype == "orf":
+            start, end = longest_orf(self._sequence(transcript))
+            return end - start
+
+    
+        else:
+            raise Exception, "Unknown idtype"
 
     def max_weight(self, transcripts, identifier_weight):
         #identifier_weight = []
@@ -339,6 +356,16 @@ class Collection:
                 w = w + idw
         
         return transcripts[numpy.argmax(w)]
+
+
+    def _sequence(self, transcript):
+        seq = ""
+        for e in transcript:
+            if not e.seq:
+                self.logger.debug("Exon {0}: no sequence".format(e))
+                return None
+            seq = "".join((seq, e.seq))
+        return seq
 
 def get_updated_exons(model, name):
     strand = model[0].strand

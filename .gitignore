@@ -23,3 +23,5 @@ pip-log.txt
 
 # Test data
 tests/data/tmp/*
+tests/data/index/*.params
+tests/data/index/*.index

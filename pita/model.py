@@ -7,14 +7,14 @@ import itertools
 import sys
 from tempfile import NamedTemporaryFile
 
-def get_chrom_models(chrom, anno_files, data, weight):
+def get_chrom_models(chrom, anno_files, data, weight, prune=None, index=None):
     sep = ":::"
     
     logger = logging.getLogger("pita")
     
     try:
         # Read annotation files
-        mc = Collection()
+        mc = Collection(index)
         for name, fname, ftype in anno_files:
             logger.debug("Reading annotation from {0}".format(fname))
             tabixfile = pysam.Tabixfile(fname)
@@ -96,25 +96,30 @@ def get_chrom_models(chrom, anno_files, data, weight):
                     exons[str(exon)] = [exon, genename]
        
         
-        
         discard = {}
-        overlap = get_overlapping_models([x[0] for x in exons.values()])
-        for e1, e2 in overlap:
-            gene1 = exons[str(e1)][1]
-            gene2 = exons[str(e2)][1]
-            if not(discard.has_key(gene1) or discard.has_key(gene2)):
-                m1 = models[gene1][1]
-                m2 = models[gene2][1]
-                w1 = mc.get_weight(m1, "RNAseq", "total_rpkm")
-                w2 = mc.get_weight(m2, "RNAseq", "total_rpkm")
-                if w1 >= w2:
-                    discard[gene2] = 1
-                else:
-                    discard[gene1] = 1
+        if prune:
+            logger.debug("Prune: {0}".format(prune))
+            overlap = get_overlapping_models([x[0] for x in exons.values()])
+            logger.debug("{0} overlapping exons".format(len(overlap)))
+            for e1, e2 in overlap:
+                gene1 = exons[str(e1)][1]
+                gene2 = exons[str(e2)][1]
+                if not(discard.has_key(gene1) or discard.has_key(gene2)):
+                    m1 = models[gene1][1]
+                    m2 = models[gene2][1]
+                
+                    w1 = 0.0
+                    w2 = 0.0
+                    for d in prune:
+                        logger.debug("Pruning overlap: {0}".format(d))
+                        w1 += mc.get_weight(m1, d["name"], d["type"])
+                        w2 += mc.get_weight(m2, d["name"], d["type"])
+                    if w1 >= w2:
+                        discard[gene2] = 1
+                    else:
+                        discard[gene1] = 1
         
         del mc
-            #print discard
-    
     
         return [v for m,v in models.items() if not m in discard]
 
