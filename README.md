@@ -8,6 +8,7 @@ At the moment, it's still a mess. It will be updated to annotate the Xenopus lae
 Prerequisites
 ------------
 The following Python modules are required:
+
 * GFF parser - http://github.com/chapmanb/bcbb/tree/master/gff
 * Biopython - http://biopython.org/
 * pysam (version 0.7.4)
@@ -16,6 +17,7 @@ The following Python modules are required:
 
 Installation
 ------------
+
     # install prerequisites
     git clone git@bitbucket.org:simonvh/pita.git
     cd pita
