@@ -1,6 +1,6 @@
 from pita.exon import *
 from pita.util import read_statistics
-from pita.util import longest_orf
+from pita.util import longest_orf,exons_to_seq
 import numpy
 import sys
 import logging
@@ -9,7 +9,6 @@ from networkx.algorithms.components.connected import connected_components
 import networkx as nx 
 from itertools import izip, count
 from gimmemotifs.genome_index import GenomeIndex
-
 
 def to_loc(chrom, start, end, strand):
     return "{0}:{1}{3}{2}".format(chrom, start, end, strand)
@@ -278,6 +277,8 @@ class Collection:
         elif idtype == "rpkm":
             total_exon_length = sum([e.end - e.start for e in transcript])
             total_signal = sum([e.stats.setdefault(identifier, 0) for e in transcript])
+            if total_signal == 0:
+                return 0
             return float(total_signal) / (self.nreads[identifier] / 1e6) / total_exon_length * 1000.0 
 
         elif idtype == "weighted":
@@ -312,14 +313,18 @@ class Collection:
                 exon = transcript[-1]
 
             size = exon.end - exon.start
-            size += self.extend[identifier][0] +  self.extend[identifier][1]
+            extend = self.extend.setdefault(identifier, (0,0))
+            size += extend[0] +  extend[1]
             count = exon.stats.setdefault(identifier, 0)
+            if count == 0:
+                return 0
+            
             rpkm = count / (self.nreads[identifier] / 1e6) / size * 1000.0
             
             return rpkm  
         
         elif idtype == "orf":
-            start, end = longest_orf(self._sequence(transcript))
+            start, end = longest_orf(exons_to_seq(transcript))
             return end - start
 
     
@@ -356,16 +361,6 @@ class Collection:
                 w = w + idw
         
         return transcripts[numpy.argmax(w)]
-
-
-    def _sequence(self, transcript):
-        seq = ""
-        for e in transcript:
-            if not e.seq:
-                self.logger.debug("Exon {0}: no sequence".format(e))
-                return None
-            seq = "".join((seq, e.seq))
-        return seq
 
 def get_updated_exons(model, name):
     strand = model[0].strand

@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 from pita.model import get_chrom_models
 from pita.log import AnnotationLog
+from pita.util import to_genomic_orf, longest_orf
 import os
 import sys
 import logging
@@ -141,6 +142,10 @@ def print_output(alog, genename, exons,  ev, best_ev, other_ev):
     chrom = exons[0].chrom
     chromStart = exons[0].start
     chromEnd = exons[-1].end
+    orf_start, orf_end = longest_orf(exons)
+
+    thickStart, thickEnd = to_genomic_orf(orf_start, orf_end, exons)
+    
     sizes = ",".join([str(exon.end - exon.start) for exon in exons]) + ","
     starts = ",".join([str(exon.start - chromStart) for exon in exons]) + ","
     print line_format.format(
@@ -150,8 +155,8 @@ def print_output(alog, genename, exons,  ev, best_ev, other_ev):
                             genename, 
                             600, 
                             exons[0].strand, 
-                            chromStart, 
-                            chromEnd, 
+                            thickStart, 
+                            thickEnd, 
                             "0,0,0", 
                             len(exons), 
                             sizes, 
