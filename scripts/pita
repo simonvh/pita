@@ -65,7 +65,7 @@ if config.has_key("prune_overlap"):
     prune = config["prune_overlap"]
 
 if not config.has_key("annotation") or len(config["annotation"]) == 0:
-    print "No annotation files specified."
+    logger.error("No annotation files specified.")
     sys.exit(1)
 
 anno_files = []
@@ -75,10 +75,10 @@ for d in config["annotation"]:
     fname = os.path.join(base, d["path"])
     t = d["type"].lower()
     if not t in VALID_TYPES:
-        print "Invalid type: {0}".format(t)
+        logger.error("Invalid type: {0}".format(t))
         sys.exit(1)
     if not os.path.exists(fname):
-        print "File does not exist: {0}".format(fname)
+        logger.error("File does not exist: {0}".format(fname))
         sys.exit(1)
     else:
         logger.info("Preparing {0} for tabix".format(fname))
@@ -118,7 +118,15 @@ if config.has_key("data") and config["data"]:
         d.setdefault("down", 0)
         if type("") == type(d["path"]):
             d["path"] = [d["path"]]
-        row = [d["name"], [os.path.join(base, x) for x in d["path"]], d["feature"], (d["up"], d["down"])]
+       
+
+        fnames = [os.path.join(base, x) for x in d["path"]]
+        for fname in fnames:
+            if not os.path.exists(fname):
+                logger.error("File does not exist: {0}".format(fname))
+                sys.exit(1)
+          
+        row = [d["name"], fnames, d["feature"], (d["up"], d["down"])]
         data.append(row)
 
 weight = {}
@@ -203,7 +211,7 @@ if threads > 1:
         pool.close()
         pool.join()
     except KeyboardInterrupt:
-        print "Caught KeyboardInterrupt, terminating workers"
+        logger.exception("Caught KeyboardInterrupt, terminating workers")
         pool.terminate()
         pool.join()
 else:
