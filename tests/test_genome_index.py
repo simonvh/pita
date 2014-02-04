@@ -44,15 +44,16 @@ def test_genome_index(index_dir, loc_and_seq):
     assert seq == g.get_sequence(*loc)
 
 def test_get_transcript_sequence(collection, seqs):
-    
+    from pita.util import exons_to_seq
+
     for cluster in collection.get_connected_models():
         models = sorted(cluster, cmp=lambda x,y: cmp(len(x), len(y)))
         seqs = sorted(seqs, cmp=lambda x,y: cmp(len(x), len(y)))
         for model, seq in zip(models, seqs):
             for exon in model:
                 print "{0}\t{1}\t{2}".format(exon.chrom, exon.start, exon.end)
-            print len(collection._sequence(model))
-            assert seq.upper() == collection._sequence(model).upper()
+            #print len(exons_to_seq(model))
+            assert seq.upper() == exons_to_seq(model).upper()
     
     
 
