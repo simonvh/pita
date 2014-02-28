@@ -24,8 +24,6 @@ bedline = "{0}\t{1}\t{2}\t{3}\t{4}\t{5}\t{6}\t{7}\t{8}\t{9}\t{10}\t{11}"
 smap = {"1":"+",1:"+","-1":"-",-1:"-", None:"+"}
 for rec in GFF.parse(fobj):
     chrom = rec.id
-    chrom = chrom.replace("Scaffold", "")
-    chrom = "JGIv7b.{0:09d}".format(int(chrom))
     for feature in rec.features:
         exons = []
         for f in _gff_type_iterator(feature, []):
