@@ -1,6 +1,6 @@
 from pita.exon import *
 from pita.util import read_statistics
-from pita.util import longest_orf,exons_to_seq
+from pita.util import longest_orf,exons_to_seq,model_to_bed
 import numpy
 import sys
 import logging
@@ -288,7 +288,7 @@ class Collection:
 
         elif idtype == "mean_exon":
             all_exons = [e.stats.setdefault(identifier, 0) / (e.end - e.start) for e in transcript]
-            return mean(all_exons)
+            return numpy.mean(all_exons)
 
         elif idtype == "total_rpkm":
             all_exons = [e.stats.setdefault(identifier, 0) / (e.end - e.start) for e in transcript]
@@ -327,6 +327,8 @@ class Collection:
             start, end = longest_orf(exons_to_seq(transcript))
             return end - start
 
+        elif idtype == "evidence":
+            return numpy.mean([len(exon.evidence) for exon in transcript])
     
         else:
             raise Exception, "Unknown idtype"
@@ -334,6 +336,15 @@ class Collection:
     def max_weight(self, transcripts, identifier_weight):
         #identifier_weight = []
         
+        for transcript in transcripts:
+            tw = self.get_weight(transcript, None, "evidence")
+            self.logger.debug("Weight: {0}".format(model_to_bed(model)))
+            self.logger.debug("Weight: {0} - {1} - {2}".format(
+                                                           transcript[0],
+                                                           "evidence",
+                                                           tw,
+                                                           ))
+
         if not identifier_weight or len(identifier_weight) == 0:
             w = [len(t) for t in transcripts]    
             #sys.stderr.write("weights: {0}".format(w))
@@ -347,13 +358,14 @@ class Collection:
                 
                 idw = []
                 for transcript in transcripts:
-                   tw = self.get_weight(transcript, identifier, idtype)
-                   self.logger.debug("{0} - {1} - {2}".format(
+                    tw = self.get_weight(transcript, identifier, idtype)
+                    self.logger.debug("Weight: {0}".format(model_to_bed(model)))
+                    self.logger.debug("Weight: {0} - {1} - {2}".format(
                                                              transcript[0],
                                                              identifier,
                                                              tw
                                                              ))
-                   idw.append(pseudo + tw)
+                    idw.append(pseudo + tw)
     
                 idw = numpy.array(idw)
                 idw = idw / max(idw) * weight

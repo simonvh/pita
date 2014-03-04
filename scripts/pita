@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 from pita.model import get_chrom_models
+from pita.util import model_to_bed
 from pita.log import AnnotationLog
-from pita.util import to_genomic_orf, longest_orf
 import os
 import sys
 import logging
@@ -18,14 +18,6 @@ import signal
 DEFAULT_CONFIG = "pita.yaml"
 DEFAULT_THREADS = 4
 VALID_TYPES = ["bed", "gff", "gff3", "gtf"]
-
-# Setup logging
-formatter = logging.Formatter(fmt='%(asctime)s - %(levelname)s - %(module)s - %(message)s')
-handler = logging.StreamHandler()
-handler.setFormatter(formatter)
-logger = logging.getLogger("pita")
-logger.setLevel(logging.DEBUG)
-logger.addHandler(handler)
 
 p = argparse.ArgumentParser()
 p.add_argument("-c",
@@ -49,6 +41,21 @@ args = p.parse_args()
 configfile = args.configfile
 threads = args.threads
 index = args.index_dir
+
+basename = os.path.splitext(configfile)[0]
+
+# Setup logging
+logger = logging.getLogger("pita")
+logger.setLevel(logging.DEBUG)
+formatter = logging.Formatter(fmt='%(asctime)s - %(levelname)s - %(module)s - %(message)s')
+handler = logging.StreamHandler()
+handler.setFormatter(formatter)
+handler.setLevel(logging.INFO)
+fh = logging.FileHandler("{0}.log".format(basename))
+fh.setFormatter(formatter)
+fh.setLevel(logging.DEBUG)
+logger.addHandler(handler)
+logger.addHandler(fh)
 
 # Parse YAML config file
 f = open(configfile, "r")
@@ -81,7 +88,8 @@ for d in config["annotation"]:
         logger.error("File does not exist: {0}".format(fname))
         sys.exit(1)
     else:
-        logger.info("Preparing {0} for tabix".format(fname))
+        logger.info("Creating tabix index for {0}".format(os.path.basename(fname)))
+        logger.debug("Preparing {0} for tabix".format(fname))
         tmp = NamedTemporaryFile(prefix="pita")
         preset = "gff"
         if t == "bed":
@@ -134,7 +142,7 @@ if config.has_key("scoring"):
     weight = config["scoring"]
 
 line_format = "{0}\t{1}\t{2}\t{3}\t{4}\t{5}\t{6}\t{7}\t{8}\t{9}\t{10}\t{11}"
-print 'track name="pita_test"'
+print 'track name="{0}"'.format(basename)
 chroms = chroms.keys()
 
 if config.has_key("chromosomes") and config["chromosomes"]:
@@ -147,29 +155,7 @@ def init_worker():
     signal.signal(signal.SIGINT, signal.SIG_IGN)
 
 def print_output(alog, genename, exons,  ev, best_ev, other_ev):
-    chrom = exons[0].chrom
-    chromStart = exons[0].start
-    chromEnd = exons[-1].end
-    orf_start, orf_end = longest_orf(exons)
-
-    thickStart, thickEnd = to_genomic_orf(orf_start, orf_end, exons)
-    
-    sizes = ",".join([str(exon.end - exon.start) for exon in exons]) + ","
-    starts = ",".join([str(exon.start - chromStart) for exon in exons]) + ","
-    print line_format.format(
-                            chrom, 
-                            chromStart, 
-                            chromEnd, 
-                            genename, 
-                            600, 
-                            exons[0].strand, 
-                            thickStart, 
-                            thickEnd, 
-                            "0,0,0", 
-                            len(exons), 
-                            sizes, 
-                            starts
-                            )
+    print model_to_bed(exons)
     alog.log_to_file(genename, exons,  ev, best_ev, other_ev ) 
 
 def listener(q, names, append=False):

@@ -1,6 +1,6 @@
 from pita.collection import Collection
 from pita.io import TabixIteratorAsFile, read_gff_transcripts, read_bed_transcripts
-from pita.util import get_overlapping_models
+from pita.util import get_overlapping_models,to_genomic_orf,longest_orf
 import logging
 import pysam
 import itertools
