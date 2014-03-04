@@ -155,7 +155,7 @@ def init_worker():
     signal.signal(signal.SIGINT, signal.SIG_IGN)
 
 def print_output(alog, genename, exons,  ev, best_ev, other_ev):
-    print model_to_bed(exons)
+    print model_to_bed(exons, genename)
     alog.log_to_file(genename, exons,  ev, best_ev, other_ev ) 
 
 def listener(q, names, append=False):

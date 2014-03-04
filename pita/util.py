@@ -93,12 +93,15 @@ def to_genomic_orf(start, end, exons):
     else:
         return genomic_start, genomic_end
 
-def model_to_bed(exons):
+def model_to_bed(exons, genename=None):
     line_format = "{0}\t{1}\t{2}\t{3}\t{4}\t{5}\t{6}\t{7}\t{8}\t{9}\t{10}\t{11}"
     
     chrom = exons[0].chrom
     chromStart = exons[0].start
     chromEnd = exons[-1].end
+    
+    if not genename:
+        genename = "{0}:{1}-{2}".format(chrom, chromStart, chromEnd)
     orf_start, orf_end = longest_orf(exons)
 
     thickStart, thickEnd = to_genomic_orf(orf_start, orf_end, exons)

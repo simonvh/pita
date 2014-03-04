@@ -338,9 +338,8 @@ class Collection:
         
         for transcript in transcripts:
             tw = self.get_weight(transcript, None, "evidence")
-            self.logger.debug("Weight: {0}".format(model_to_bed(model)))
             self.logger.debug("Weight: {0} - {1} - {2}".format(
-                                                           transcript[0],
+                                                           model_to_bed(transcript),
                                                            "evidence",
                                                            tw,
                                                            ))
@@ -359,9 +358,8 @@ class Collection:
                 idw = []
                 for transcript in transcripts:
                     tw = self.get_weight(transcript, identifier, idtype)
-                    self.logger.debug("Weight: {0}".format(model_to_bed(model)))
                     self.logger.debug("Weight: {0} - {1} - {2}".format(
-                                                             transcript[0],
+                                                             model_to_bed(transcript),
                                                              identifier,
                                                              tw
                                                              ))
