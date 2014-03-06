@@ -183,6 +183,18 @@ class Collection:
         
         return pruned
 
+    def filter_long(self, l=1000):
+        exons = self.get_exons()
+        for exon in self.get_exons():
+            if len(exon) >= l and len(exon.evidence) < 2:
+                out_edges = len(self.graph.out_edges([exon]))
+                in_edges = len(self.graph.in_edges([exon]))
+                if in_edges >= 1 and out_edges >= 1:
+                    self.logger.info("Removing long exon {0}".format(exon))
+                    self.graph.remove_node(exon)
+                    del self.exons[exon.chrom][to_sloc(exon.start, exon.end, exon.strand)]
+        
+
     def get_read_statistics(self, fnames, name, span="exon", extend=(0,0)):
         from fluff.fluffio import get_binned_stats
         from tempfile import NamedTemporaryFile

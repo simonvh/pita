@@ -35,6 +35,9 @@ def get_chrom_models(chrom, anno_files, data, weight, prune=None, index=None):
         #for p in mc.prune():
         #    logger.debug("Pruning {0}:{1}-{2}".format(*p))
 
+        # Remove long exons with only one evidence source
+        mc.filter_long(l=2000)
+
         for name, fname, span, extend in data:
             if span == "splice":
                 logger.debug("Reading splice data {0} from {1}".format(name, fname))

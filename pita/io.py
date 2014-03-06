@@ -70,6 +70,9 @@ def read_gff_transcripts(fobj, fname="", min_exons=1):
 
     return transcripts
 
+
+
+
 def read_bed_transcripts(fobj, fname="", min_exons=1):
     
     # Setup logging
@@ -86,8 +89,8 @@ def read_bed_transcripts(fobj, fname="", min_exons=1):
                 # More than one exon
                 chromStart = int(vals[1])
                 if int(vals[9]) > 1:
-                    sizes = [int(x) for x in vals[10].split(",")[:-1]]
-                    starts = [int(x) for x in vals[11].split(",")[:-1]] 
+                    sizes = [int(x) for x in vals[10].strip(",").split(",")]
+                    starts = [int(x) for x in vals[11].strip(",").split(",")] 
                     
                     starts, sizes = merge_exons(starts, sizes)
                     

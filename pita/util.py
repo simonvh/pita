@@ -102,9 +102,12 @@ def model_to_bed(exons, genename=None):
     
     if not genename:
         genename = "{0}:{1}-{2}".format(chrom, chromStart, chromEnd)
-    orf_start, orf_end = longest_orf(exons)
+    
+    thickStart, thickEnd = chromStart, chromEnd
 
-    thickStart, thickEnd = to_genomic_orf(orf_start, orf_end, exons)
+    if exons[0].seq:
+        orf_start, orf_end = longest_orf(exons)
+        thickStart, thickEnd = to_genomic_orf(orf_start, orf_end, exons)
 
     sizes = ",".join([str(exon.end - exon.start) for exon in exons]) + ","
     starts = ",".join([str(exon.start - chromStart) for exon in exons]) + ","

@@ -46,7 +46,7 @@ basename = os.path.splitext(configfile)[0]
 
 # Setup logging
 logger = logging.getLogger("pita")
-logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.INFO)
 formatter = logging.Formatter(fmt='%(asctime)s - %(levelname)s - %(module)s - %(message)s')
 handler = logging.StreamHandler()
 handler.setFormatter(formatter)
