@@ -37,6 +37,8 @@ def get_chrom_models(chrom, anno_files, data, weight, prune=None, index=None):
 
         # Remove long exons with only one evidence source
         mc.filter_long(l=2000)
+        # Remove short introns
+        mc.filter_short_introns()
 
         for name, fname, span, extend in data:
             if span == "splice":
