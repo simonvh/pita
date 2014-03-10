@@ -4,10 +4,10 @@ import pprint
 import sys
 import logging 
 
-def merge_exons(starts, sizes):
+def merge_exons(starts, sizes, l=0):
     merge = []
     for i, (start1, start2, size) in enumerate(zip(starts[:-1], starts[1:], sizes[:-1])):
-        if start1 + size >= start2:
+        if start1 + size + l >= start2:
             merge.append(i + 1)
     
     if len(merge) == 0:
@@ -41,11 +41,14 @@ def _gff_type_iterator(feature, ftypes):
             for f in _gff_type_iterator(feature, ftypes):
                 yield f
 
-def read_gff_transcripts(fobj, fname="", min_exons=1):
+def read_gff_transcripts(fobj, fname="", min_exons=1, merge=0):
     
     # Setup logging
     logger = logging.getLogger('pita')
-    
+  
+    if merge > 0:
+        logger.warning("Merging exons not yet implemented for GFF files!")
+
     #limits = dict(gff_type = ["mRNA", "exon"])
     smap = {"1":"+",1:"+","-1":"-",-1:"-", None:"+"}
     transcripts = []
@@ -73,7 +76,7 @@ def read_gff_transcripts(fobj, fname="", min_exons=1):
 
 
 
-def read_bed_transcripts(fobj, fname="", min_exons=1):
+def read_bed_transcripts(fobj, fname="", min_exons=1, merge=0):
     
     # Setup logging
     logger = logging.getLogger('pita')
@@ -92,7 +95,7 @@ def read_bed_transcripts(fobj, fname="", min_exons=1):
                     sizes = [int(x) for x in vals[10].strip(",").split(",")]
                     starts = [int(x) for x in vals[11].strip(",").split(",")] 
                     
-                    starts, sizes = merge_exons(starts, sizes)
+                    starts, sizes = merge_exons(starts, sizes, l=merge)
                     
                     i = 1
                     name = "%s_%s_%s" % (vals[0], vals[3], i)

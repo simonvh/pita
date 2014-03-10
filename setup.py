@@ -30,6 +30,7 @@ setup (name = 'pita',
         scripts=[
             "scripts/pita",
             "scripts/bed12togff3",
+            "scripts/flatbread",
         ],
         data_files=[],
         tests_require=['pytest'],

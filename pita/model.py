@@ -6,15 +6,16 @@ import pysam
 import itertools
 import sys
 from tempfile import NamedTemporaryFile
+from pita.config import SEP
 
 def get_chrom_models(chrom, anno_files, data, weight, prune=None, index=None):
-    sep = ":::"
     
     logger = logging.getLogger("pita")
     
     try:
         # Read annotation files
         mc = Collection(index)
+        logger.info("Reading annotation for {0}".format(chrom))
         for name, fname, ftype in anno_files:
             logger.debug("Reading annotation from {0}".format(fname))
             tabixfile = pysam.Tabixfile(fname)
@@ -22,11 +23,11 @@ def get_chrom_models(chrom, anno_files, data, weight, prune=None, index=None):
             if chrom in tabixfile.contigs:
                 fobj = TabixIteratorAsFile(tabixfile.fetch(chrom))
                 if ftype == "bed":
-                    it = read_bed_transcripts(fobj, fname, 2)
+                    it = read_bed_transcripts(fobj, fname, min_exons=2, merge=10)
                 elif ftype in ["gff", "gtf", "gff3"]:
-                    it = read_gff_transcripts(fobj, fname, 2)
+                    it = read_gff_transcripts(fobj, fname, min_exons=2, merge=10)
                 for tname, source, exons in it:
-                    mc.add_transcript("{0}{1}{2}".format(name, sep, tname), source, exons)
+                    mc.add_transcript("{0}{1}{2}".format(name, SEP, tname), source, exons)
                 del fobj    
             tabixfile.close()
             del tabixfile
@@ -38,7 +39,8 @@ def get_chrom_models(chrom, anno_files, data, weight, prune=None, index=None):
         # Remove long exons with only one evidence source
         mc.filter_long(l=2000)
         # Remove short introns
-        mc.filter_short_introns()
+        #mc.filter_short_introns()
+        logger.info("Loading data for {0}".format(chrom))
 
         for name, fname, span, extend in data:
             if span == "splice":
@@ -50,12 +52,13 @@ def get_chrom_models(chrom, anno_files, data, weight, prune=None, index=None):
         
         models = {}
         exons = {}
+        logger.info("Calling transcripts for {0}".format(chrom))
         for cluster in mc.get_connected_models():
             while len(cluster) > 0:
                 best_model = mc.max_weight(cluster, weight)
                 variants = [m for m in mc.all_simple_paths(best_model[0], best_model[-1])]
                 if len(variants) > 1:
-                    logger.info("Checking {0} extra variants".format(len(variants)))
+                    logger.debug("Checking {0} extra variants".format(len(variants)))
                     best_model = mc.max_weight(variants, weight)
                 
                  
@@ -87,17 +90,17 @@ def get_chrom_models(chrom, anno_files, data, weight, prune=None, index=None):
                 best_ev = {}
                 other_ev = {}
                 for e in best_model:
-                    for ev in set([x.split(sep)[0] for x in e.evidence]):
+                    for ev in set([x.split(SEP)[0] for x in e.evidence]):
                         best_ev[ev] = best_ev.setdefault(ev, 0) + 1
     
                 # Fast way to collapse
                 for e in other_exons:
-                    for ev in set([x.split(sep)[0] for x in e.evidence]):
+                    for ev in set([x.split(SEP)[0] for x in e.evidence]):
                         other_ev[ev] = other_ev.setdefault(ev, 0) + 1
                 ev = []
                 for e in best_model + other_exons:
                     for evidence in e.evidence:
-                        ev.append(evidence.split(sep))
+                        ev.append(evidence.split(SEP))
     
                 ### End ugly logging stuff
                 logger.debug("Best model: {0} with {1} exons".format(genename, len(best_model)))

@@ -62,7 +62,7 @@ for f in config["annotation"]:
         sys.exit(1)
     a = pybedtools.BedTool(path)
     b = pybedtools.BedTool(bedfile)
-    a.intersect(b).saveas(os.path.join(outname, os.path.basename(path)))
+    a.intersect(b, wa=True).saveas(os.path.join(outname, os.path.basename(path)))
     f['path'] = os.path.basename(path)
 
 for f in config['data']:
