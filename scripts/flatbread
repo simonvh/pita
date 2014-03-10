@@ -1,19 +1,10 @@
 #!/usr/bin/env python
-from pita.model import get_chrom_models
-from pita.log import AnnotationLog
-from pita.util import to_genomic_orf, longest_orf
+# Create test set for use with pita
 import os
 import sys
-import logging
 import yaml
 import argparse
-import pysam
-import subprocess
-import pp
-from tempfile import NamedTemporaryFile
-import multiprocessing as mp
-from functools import partial
-import signal
+import pybedtools
 
 p = argparse.ArgumentParser()
 p.add_argument("-c",
@@ -34,6 +25,10 @@ configfile = args.configfile
 bedfile = args.bedfile
 outname = args.output
 
+if not (configfile and bedfile and outname):
+    p.print_help()
+    sys.exit()
+
 # Parse YAML config file
 f = open(configfile, "r")
 config = yaml.load(f)
@@ -43,4 +38,41 @@ base = "."
 if config.has_key("data_path"):
     base = config["data_path"]
 
-print config["annotation"]
+# Output data directoy
+if not os.path.exists(outname):
+    os.mkdir(outname)
+else:
+    print("Output path {0} already exists!".format(outname))
+    sys.exit(1)
+
+# Get chromosomes from BED file
+chroms = {}
+a = pybedtools.BedTool(bedfile)
+for f in a:
+    chroms[f[0]] = 1
+config["chromosomes"] = chroms.keys()
+
+# Do all intersections with BED file
+for f in config["annotation"]:
+    path = f['path']
+    if not os.path.exists(path):
+        path = os.path.join(base, path)
+    if not os.path.exists(path):
+        print("File not found: {0}".format(path))
+        sys.exit(1)
+    a = pybedtools.BedTool(path)
+    b = pybedtools.BedTool(bedfile)
+    a.intersect(b).saveas(os.path.join(outname, os.path.basename(path)))
+    f['path'] = os.path.basename(path)
+
+for f in config['data']:
+    for p in f['path']:
+        if not os.path.exists(p):
+            os.symlink(os.path.join(base, p), os.path.join(outname, p))
+            if p.endswith("bam"):
+                os.symlink(os.path.join(base, p + ".bai"), os.path.join(outname, p + ".bai"))
+
+config["data_path"] = os.path.abspath(outname)
+
+with open("{0}.yaml".format(outname), "w") as f:
+    f.write(yaml.dump(config))

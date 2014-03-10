@@ -44,13 +44,19 @@ def get_chrom_models(chrom, anno_files, data, weight, prune=None, index=None):
                 mc.get_splice_statistics(fname, name=name)
             else:
                 logger.debug("Reading BAM data {0} from {1}".format(name, fname))
-                mc.get_read_statistics(fname, name=name, span=span, extend=extend)
+                mc.get_read_statistics(fname, name=name, span=span, extend=extend, nreads=None)
         
         models = {}
         exons = {}
         for cluster in mc.get_connected_models():
             while len(cluster) > 0:
                 best_model = mc.max_weight(cluster, weight)
+                variants = [m for m in mc.all_simple_paths(best_model[0], best_model[-1])]
+                if len(variants) > 1:
+                    logger.info("Checking {0} extra variants".format(len(variants)))
+                    best_model = mc.max_weight(variants, weight)
+                
+                 
                 genename = "{0}:{1}-{2}_".format(
                                             best_model[0].chrom,
                                             best_model[0].start,
@@ -115,8 +121,13 @@ def get_chrom_models(chrom, anno_files, data, weight, prune=None, index=None):
                     w2 = 0.0
                     for d in prune:
                         logger.debug("Pruning overlap: {0}".format(d))
-                        w1 += mc.get_weight(m1, d["name"], d["type"])
-                        w2 += mc.get_weight(m2, d["name"], d["type"])
+                        tmp_w1 = mc.get_weight(m1, d["name"], d["type"])
+                        tmp_w2 = mc.get_weight(m2, d["name"], d["type"])
+                        m = max((tmp_w1, tmp_w2))
+                        if m > 0:
+                            w1 += tmp_w1 / max((tmp_w1, tmp_w2))
+                            w2 += tmp_w2 / max((tmp_w1, tmp_w2))
+
                     if w1 >= w2:
                         discard[gene2] = 1
                     else:

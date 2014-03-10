@@ -59,6 +59,8 @@ class Collection:
         else:
             self.index = None
 
+
+
     def add_exon(self, chrom, start, end, strand):
         """ 
         Create Exon object if does not exist.
@@ -80,6 +82,10 @@ class Collection:
         
         self.exons[chrom][to_sloc(start, end, strand)] = e
         return e
+
+    def remove_exon(self, e):
+        self.graph.remove_node(e)
+        del self.exons[e.chrom][to_sloc(e.start, e.end, e.strand)]
 
     def get_exons(self, chrom=None):
         """ Return exon objects
@@ -186,16 +192,53 @@ class Collection:
     def filter_long(self, l=1000):
         exons = self.get_exons()
         for exon in self.get_exons():
-            if len(exon) >= l and len(exon.evidence) < 2:
-                out_edges = len(self.graph.out_edges([exon]))
-                in_edges = len(self.graph.in_edges([exon]))
-                if in_edges >= 1 and out_edges >= 1:
-                    self.logger.info("Removing long exon {0}".format(exon))
-                    self.graph.remove_node(exon)
-                    del self.exons[exon.chrom][to_sloc(exon.start, exon.end, exon.strand)]
-        
+            if len(exon) >= l:
+                self.logger.info("Checking exon {0} length {1} evidence {2}".format(exon, l, exon.evidence))
+                if len(exon.evidence) < 2:
+                    out_edges = len(self.graph.out_edges([exon]))
+                    in_edges = len(self.graph.in_edges([exon]))
+                    self.logger.info("In {0} Out {1}".format(in_edges,out_edges))
 
-    def get_read_statistics(self, fnames, name, span="exon", extend=(0,0)):
+                    if in_edges >= 0 and out_edges >= 1 and exon.strand == "+" or in_edges >= 1 and out_edges >= 0 and exon.strand == "-":
+                        self.logger.info("Removing long exon {0}".format(exon))
+                        self.graph.remove_node(exon)
+                        del self.exons[exon.chrom][to_sloc(exon.start, exon.end, exon.strand)]
+    
+    def filter_short_introns(self, l=10, mode='merge'):
+        for intron in self.graph.edges_iter():
+            e1,e2 = intron
+            if e2.start - e1.end <= l:
+                if mode == "merge":
+                    print "merging {0} {1}".format(e1, e2)
+                    new_exon = self.add_exon(e1.chrom, e1.start, e2.end, e1.strand)
+                    for e_in in [e[0] for e in self.graph.in_edges([e1])]:
+                        self.graph.add_edge(e_in, new_exon)
+                    for e_out in [e[1] for e in self.graph.out_edges([e2])]:
+                        self.graph.add_edge(new_exon, e2)
+                    
+                for e in (e1, e2):
+                    self.remove_exon(e)                         
+                    
+    def all_simple_paths(self, exon1, exon2):
+        return nx.all_simple_paths(self.graph, exon1, exon2)
+    
+    def get_alt_splicing_exons(self):
+        for exon in self.get_exons():
+            out_exons = [e[1] for e in self.graph.out_edges([exon]) if len(self.graph.out_edges([e[1]])) > 0]
+            if len(out_exons) > 1:
+                
+                out_exon = out_exons[0]
+                
+                self.logger.info("ALT SPLICING {0} {1}".format(exon, out_exon))
+
+            #in_exons = [e[0] for e in self.graph.in_edges([exon])]
+            #for in_exon in in_exons:
+            #    my_in_exons = [e[0] for e in self.graph.in_edges([in_exon])]
+            #    for my_in_exon in my_in_exons:
+            #        if my_in_exon in in_exons:
+            #            self.logger.info("{0} is alternative exon".format(in_exon)) 
+
+    def get_read_statistics(self, fnames, name, span="exon", extend=(0,0), nreads=None):
         from fluff.fluffio import get_binned_stats
         from tempfile import NamedTemporaryFile
 
@@ -232,9 +275,10 @@ class Collection:
         if not self.nreads.has_key(name):
             self.nreads[name] = 0
 
-        for fname in fnames:
-            if fname.endswith("bam"):
+        for i, fname in enumerate(fnames):
+            if fname.endswith("bam") and (not nreads or not nreads[i]):
                 rmrepeats = True
+                self.logger.info("Counting reads in {0}".format(fname))
                 self.nreads[name] += read_statistics(fname) 
             else:
                 rmrepeats = False
