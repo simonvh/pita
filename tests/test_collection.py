@@ -109,4 +109,64 @@ def test_retrieve_transcripts(three_transcripts, two_transcripts):
     assert 2 == len(clusters)
     assert 1 == len(clusters[0])
     assert 4 == len(clusters[1])
-     
+    
+@pytest.fixture
+def t1():
+    return "tests/data/long_exons1.bed" 
+
+@pytest.fixture
+def t2():
+    return "tests/data/long_exons2.bed" 
+
+def test_long_exon_filter(t1, t2):
+    from pita.collection import Collection
+    from pita.io import read_bed_transcripts
+    from pita.util import model_to_bed
+
+    c = Collection()
+
+    for tname, source, exons in read_bed_transcripts(open(t1)):
+        c.add_transcript("{0}{1}{2}".format("t1", "|", tname), source, exons)
+    for tname, source, exons in read_bed_transcripts(open(t2)):
+        c.add_transcript("{0}{1}{2}".format("t2", "|", tname), source, exons)
+    
+    c.filter_long()
+
+    models = []
+    for cluster in c.get_connected_models():
+        for m in cluster:
+            models.append(m)
+    
+    assert [1,3,5] == sorted([len(m) for m in models])
+
+@pytest.fixture
+def short_intron_track():
+    return "tests/data/short_introns.bed" 
+
+def test_long_exon_filter(short_intron_track):
+    from pita.collection import Collection
+    from pita.io import read_bed_transcripts
+    from pita.util import model_to_bed
+
+    c = Collection()
+
+    for tname, source, exons in read_bed_transcripts(open(short_intron_track)):
+        c.add_transcript("{0}{1}{2}".format("t1", "|", tname), source, exons)
+    
+    c.filter_short_introns(mode='merge')
+
+    exons = c.get_exons()
+    lens = sorted([len(e) for e in exons])
+    assert [100,100,100,110,1500,2000] == lens
+    
+    c = Collection()
+
+    for tname, source, exons in read_bed_transcripts(open(short_intron_track)):
+        c.add_transcript("{0}{1}{2}".format("t1", "|", tname), source, exons)
+    
+    c.filter_short_introns(mode='delete')
+
+    exons = c.get_exons()
+    lens = sorted([len(e) for e in exons])
+    assert [100,100,100,1500,2000] == lens
+

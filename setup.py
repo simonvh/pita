@@ -2,7 +2,7 @@ from distutils.core import setup
 from setuptools.command.test import test as TestCommand
 import sys
 
-VERSION = "1.32"
+VERSION = "1.60"
 DESCRIPTION = """
 pita - pita improves transcript annotation
 """
@@ -30,8 +30,19 @@ setup (name = 'pita',
         scripts=[
             "scripts/pita",
             "scripts/bed12togff3",
+            "scripts/flatbread",
+            "scripts/breadcrumb",
         ],
         data_files=[],
         tests_require=['pytest'],
+        install_requires=[
+                        "numpy",
+                        "pysam >= 0.7.4",
+                        "pyyaml",
+                        "HTSeq",
+                        "bcbio-gff",
+                        "biopython",
+                        "networkx",
+                        ],
         cmdclass = {'test': PyTest},
 )

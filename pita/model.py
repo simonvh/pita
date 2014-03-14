@@ -6,15 +6,16 @@ import pysam
 import itertools
 import sys
 from tempfile import NamedTemporaryFile
+from pita.config import SEP
 
 def get_chrom_models(chrom, anno_files, data, weight, prune=None, index=None):
-    sep = ":::"
     
     logger = logging.getLogger("pita")
     
     try:
         # Read annotation files
         mc = Collection(index)
+        logger.info("Reading annotation for {0}".format(chrom))
         for name, fname, ftype in anno_files:
             logger.debug("Reading annotation from {0}".format(fname))
             tabixfile = pysam.Tabixfile(fname)
@@ -22,11 +23,11 @@ def get_chrom_models(chrom, anno_files, data, weight, prune=None, index=None):
             if chrom in tabixfile.contigs:
                 fobj = TabixIteratorAsFile(tabixfile.fetch(chrom))
                 if ftype == "bed":
-                    it = read_bed_transcripts(fobj, fname, 2)
+                    it = read_bed_transcripts(fobj, fname, min_exons=2, merge=10)
                 elif ftype in ["gff", "gtf", "gff3"]:
-                    it = read_gff_transcripts(fobj, fname, 2)
+                    it = read_gff_transcripts(fobj, fname, min_exons=2, merge=10)
                 for tname, source, exons in it:
-                    mc.add_transcript("{0}{1}{2}".format(name, sep, tname), source, exons)
+                    mc.add_transcript("{0}{1}{2}".format(name, SEP, tname), source, exons)
                 del fobj    
             tabixfile.close()
             del tabixfile
@@ -35,19 +36,32 @@ def get_chrom_models(chrom, anno_files, data, weight, prune=None, index=None):
         #for p in mc.prune():
         #    logger.debug("Pruning {0}:{1}-{2}".format(*p))
 
+        # Remove long exons with only one evidence source
+        mc.filter_long(l=2000)
+        # Remove short introns
+        #mc.filter_short_introns()
+        logger.info("Loading data for {0}".format(chrom))
+
         for name, fname, span, extend in data:
             if span == "splice":
                 logger.debug("Reading splice data {0} from {1}".format(name, fname))
                 mc.get_splice_statistics(fname, name=name)
             else:
                 logger.debug("Reading BAM data {0} from {1}".format(name, fname))
-                mc.get_read_statistics(fname, name=name, span=span, extend=extend)
+                mc.get_read_statistics(fname, name=name, span=span, extend=extend, nreads=None)
         
         models = {}
         exons = {}
+        logger.info("Calling transcripts for {0}".format(chrom))
         for cluster in mc.get_connected_models():
             while len(cluster) > 0:
                 best_model = mc.max_weight(cluster, weight)
+                variants = [m for m in mc.all_simple_paths(best_model[0], best_model[-1])]
+                if len(variants) > 1:
+                    logger.debug("Checking {0} extra variants".format(len(variants)))
+                    best_model = mc.max_weight(variants, weight)
+                
+                 
                 genename = "{0}:{1}-{2}_".format(
                                             best_model[0].chrom,
                                             best_model[0].start,
@@ -76,17 +90,17 @@ def get_chrom_models(chrom, anno_files, data, weight, prune=None, index=None):
                 best_ev = {}
                 other_ev = {}
                 for e in best_model:
-                    for ev in set([x.split(sep)[0] for x in e.evidence]):
+                    for ev in set([x.split(SEP)[0] for x in e.evidence]):
                         best_ev[ev] = best_ev.setdefault(ev, 0) + 1
     
                 # Fast way to collapse
                 for e in other_exons:
-                    for ev in set([x.split(sep)[0] for x in e.evidence]):
+                    for ev in set([x.split(SEP)[0] for x in e.evidence]):
                         other_ev[ev] = other_ev.setdefault(ev, 0) + 1
                 ev = []
                 for e in best_model + other_exons:
                     for evidence in e.evidence:
-                        ev.append(evidence.split(sep))
+                        ev.append(evidence.split(SEP))
     
                 ### End ugly logging stuff
                 logger.debug("Best model: {0} with {1} exons".format(genename, len(best_model)))
@@ -112,8 +126,13 @@ def get_chrom_models(chrom, anno_files, data, weight, prune=None, index=None):
                     w2 = 0.0
                     for d in prune:
                         logger.debug("Pruning overlap: {0}".format(d))
-                        w1 += mc.get_weight(m1, d["name"], d["type"])
-                        w2 += mc.get_weight(m2, d["name"], d["type"])
+                        tmp_w1 = mc.get_weight(m1, d["name"], d["type"])
+                        tmp_w2 = mc.get_weight(m2, d["name"], d["type"])
+                        m = max((tmp_w1, tmp_w2))
+                        if m > 0:
+                            w1 += tmp_w1 / max((tmp_w1, tmp_w2))
+                            w2 += tmp_w2 / max((tmp_w1, tmp_w2))
+
                     if w1 >= w2:
                         discard[gene2] = 1
                     else:

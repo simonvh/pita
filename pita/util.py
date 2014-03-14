@@ -19,7 +19,7 @@ def read_statistics(fname, rmrepeat=False, rmdup=False, mapped=False):
              )
 
     stdout,stderr = p.communicate()
-
+    
     n = int(stdout.strip())
 
     return n
@@ -48,8 +48,7 @@ def exons_to_seq(exons):
         seq = "".join((seq, e.seq))
     return seq
 
-
-def longest_orf(seq):
+def longest_orf(seq, do_prot=False):
     if type(seq) == type([]):
         seq = exons_to_seq(seq)
     dna = Seq(seq, IUPAC.ambiguous_dna)
@@ -57,17 +56,22 @@ def longest_orf(seq):
     my_cmp = lambda x,y: cmp(len(x), len(y))
 
     orfs = []
+    prots = []
     for i in range(3):
         seq = dna[i:]
         seq = seq[:-len(seq) % 3]
         prot = str(seq.translate())
-        putative_orfs = [re.sub(r'^[^M]*', "", o) for o in prot.split("*")]
-        longest_orf = sorted(putative_orfs, cmp=my_cmp)[-1]
-        start = prot.find(longest_orf) * 3 + i
-        end = start + (len(longest_orf) + 1) * 3
+        #putative_orfs = [re.sub(r'^[^M]*', "", o) for o in prot.split("*")]
+        putative_orfs = [o for o in prot.split("*")]
+        longest = sorted(putative_orfs, cmp=my_cmp)[-1]
+        prots.append(longest)
+        start = prot.find(longest) * 3 + i
+        end = start + (len(longest) + 1) * 3
         orfs.append((start,end))
-    
-    return sorted(orfs, cmp=lambda x,y: cmp(x[1] - x[0], y[1] - y[0]))[-1]
+    if do_prot:
+        return sorted(prots, cmp=lambda x,y: cmp(len(x), len(y)))[-1]
+    else:
+        return sorted(orfs, cmp=lambda x,y: cmp(x[1] - x[0], y[1] - y[0]))[-1]
 
 def find_genomic_pos(pos, exons):
     if exons[0].strand == "-":
@@ -104,9 +108,12 @@ def model_to_bed(exons, genename=None):
     
     if not genename:
         genename = "{0}:{1}-{2}".format(chrom, chromStart, chromEnd)
-    orf_start, orf_end = longest_orf(exons)
+    
+    thickStart, thickEnd = chromStart, chromEnd
 
-    thickStart, thickEnd = to_genomic_orf(orf_start, orf_end, exons)
+    if exons[0].seq:
+        orf_start, orf_end = longest_orf(exons)
+        thickStart, thickEnd = to_genomic_orf(orf_start, orf_end, exons)
 
     sizes = ",".join([str(exon.end - exon.start) for exon in exons]) + ","
     starts = ",".join([str(exon.start - chromStart) for exon in exons]) + ","

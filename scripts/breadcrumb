@@ -1,0 +1,51 @@
+#!/usr/bin/env python
+# Create test set for use with pita
+import os
+import sys
+import yaml
+import argparse
+import random
+
+p = argparse.ArgumentParser()
+p.add_argument("-c",
+               dest= "configfile",
+               help="Input configuration file"
+              )
+p.add_argument("-n",
+               dest= "numchroms",
+               type=int,
+               help="Number of chromosomes / regions per file",
+              )
+p.add_argument("-o",
+               dest= "output",
+               help="Output base name"
+              )
+
+args = p.parse_args()
+configfile = args.configfile
+numchroms = args.numchroms
+outname = args.output
+
+if not (configfile and numchroms and outname):
+    p.print_help()
+    sys.exit()
+
+# Parse YAML config file
+f = open(configfile, "r")
+config = yaml.load(f)
+
+# Output data directoy
+if not os.path.exists(outname):
+    os.mkdir(outname)
+else:
+    print("Output path {0} already exists!".format(outname))
+    sys.exit(1)
+
+# Get chromosomes from BED file
+chroms = config["chromosomes"] 
+random.shuffle(chroms)
+
+for i in range(0, len(chroms), numchroms):
+    config['chromosomes'] = chroms[i: i + numchroms]
+    with open("{0}/{0}_part_{1}.yaml".format(outname, (i / numchroms) + 1), "w") as f:
+        f.write(yaml.dump(config))
