@@ -146,6 +146,16 @@ class Collection:
                 self.logger.debug("yielding {0} paths".format(len(paths)))
             yield paths
     
+    def get_best_variant(self, model, weight):
+        
+        nodeset = nx.minimum_st_node_cut(self.graph, model[0], model[-1])
+        nodeset = [model[0]] + list(nodeset) + [model[-1]]
+        best_variant = [model[0]]
+        for n1,n2 in zip(nodeset[:-1], nodeset[1:]):
+             variants = [m for m in self.all_simple_paths(n1, n2)]
+             best_variant += self.max_weight(variants, weight)[1:]
+        return best_variant
+
     def prune(self):
         pruned = []
 
@@ -408,6 +418,9 @@ class Collection:
         elif idtype == "evidence":
             return numpy.mean([len(exon.evidence) for exon in transcript])
     
+        elif idtype == "length":
+            return numpy.sum([len(exon) for exon in transcript])
+        
         else:
             raise Exception, "Unknown idtype"
 

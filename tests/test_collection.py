@@ -170,3 +170,23 @@ def test_long_exon_filter(short_intron_track):
     lens = sorted([len(e) for e in exons])
     assert [100,100,100,1500,2000] == lens
 
+@pytest.fixture
+def variant_track():
+    return "tests/data/many_paths.bed" 
+
+def test_variants(variant_track):
+    from pita.collection import Collection
+    from pita.io import read_bed_transcripts
+    from pita.util import model_to_bed
+
+    c = Collection()
+    for tname, source, exons in read_bed_transcripts(open(variant_track)):
+         c.add_transcript("{0}{1}{2}".format("t1", "|", tname), source, exons)
+
+    best_model = [m for m in  c.get_connected_models()][0][0]
+    best_variant = c.get_best_variant(best_model, [{"weight":1,"type":"length","name":"length"}])
+    s = [str(x) for x in best_variant]
+    
+    assert ["chr1:100-200", "chr1:400-700", "chr1:800-900", "chr1:1000-1300", "chr1:1400-1500"] == s
+
+
