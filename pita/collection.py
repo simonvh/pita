@@ -145,10 +145,20 @@ class Collection:
             if len(paths) > 0:
                 self.logger.debug("yielding {0} paths".format(len(paths)))
             yield paths
-    
+   
+    def get_node_cuts(self, model):
+        
+        node_cuts = []
+        cuts = list(nx.minimum_st_node_cut(self.graph, model[0], model[-1]))
+        while len(cuts) == 1:
+            node_cuts += cuts
+            cuts = list(nx.minimum_st_node_cut(self.graph, cuts[-1], model[-1]))
+        
+        return node_cuts 
+
     def get_best_variant(self, model, weight):
         
-        nodeset = nx.minimum_st_node_cut(self.graph, model[0], model[-1])
+        nodeset = self.get_node_cuts(model)
         nodeset = [model[0]] + list(nodeset) + [model[-1]]
         best_variant = [model[0]]
         for n1,n2 in zip(nodeset[:-1], nodeset[1:]):

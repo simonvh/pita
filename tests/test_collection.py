@@ -184,9 +184,11 @@ def test_variants(variant_track):
          c.add_transcript("{0}{1}{2}".format("t1", "|", tname), source, exons)
 
     best_model = [m for m in  c.get_connected_models()][0][0]
-    best_variant = c.get_best_variant(best_model, [{"weight":1,"type":"length","name":"length"}])
-    s = [str(x) for x in best_variant]
+    cuts = [str(e) for e in c.get_node_cuts(best_model)]
+    assert ["chr1:800-900", "chr1:1400-1500"] == cuts 
     
-    assert ["chr1:100-200", "chr1:400-700", "chr1:800-900", "chr1:1000-1300", "chr1:1400-1500"] == s
+    best_variant = c.get_best_variant(best_model, [{"weight":1,"type":"length","name":"length"}])
+    s = [str(s) for s in best_variant]
+    assert ["chr1:100-200", "chr1:400-700", "chr1:800-900", "chr1:1000-1300", "chr1:1400-1500", "chr1:1600-1900", "chr1:2000-2100"] == s
 
 
