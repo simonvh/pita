@@ -58,7 +58,9 @@ def longest_orf(seq):
 
     orfs = []
     for i in range(3):
-        prot = str(dna[i:].translate())
+        seq = dna[i:]
+        seq = seq[:-len(seq) % 3]
+        prot = str(seq.translate())
         putative_orfs = [re.sub(r'^[^M]*', "", o) for o in prot.split("*")]
         longest_orf = sorted(putative_orfs, cmp=my_cmp)[-1]
         start = prot.find(longest_orf) * 3 + i
