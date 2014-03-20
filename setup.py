@@ -2,7 +2,7 @@ from distutils.core import setup
 from setuptools.command.test import test as TestCommand
 import sys
 
-VERSION = "1.60"
+VERSION = "1.62"
 DESCRIPTION = """
 pita - pita improves transcript annotation
 """
@@ -36,13 +36,17 @@ setup (name = 'pita',
         data_files=[],
         tests_require=['pytest'],
         install_requires=[
-                        "numpy",
+                        "gimmemotifs >= 0.8.3",
                         "pysam >= 0.7.4",
                         "pyyaml",
                         "HTSeq",
                         "bcbio-gff",
                         "biopython",
                         "networkx",
+                        "numpy",
+                        ],
+        dependency_links = [
+                        'https://github.com/simonvh/gimmemotifs/archive/0.8.3.tar.gz#egg=gimmemotifs-0.8.3',
                         ],
         cmdclass = {'test': PyTest},
 )

@@ -56,11 +56,7 @@ def get_chrom_models(chrom, anno_files, data, weight, prune=None, index=None):
         for cluster in mc.get_connected_models():
             while len(cluster) > 0:
                 best_model = mc.max_weight(cluster, weight)
-                variants = [m for m in mc.all_simple_paths(best_model[0], best_model[-1])]
-                if len(variants) > 1:
-                    logger.debug("Checking {0} extra variants".format(len(variants)))
-                    best_model = mc.max_weight(variants, weight)
-                
+                best_model = mc.get_best_variant(best_model, weight)                
                  
                 genename = "{0}:{1}-{2}_".format(
                                             best_model[0].chrom,
