@@ -36,13 +36,16 @@ setup (name = 'pita',
         data_files=[],
         tests_require=['pytest'],
         install_requires=[
-                        "numpy",
                         "pysam >= 0.7.4",
                         "pyyaml",
                         "HTSeq",
                         "bcbio-gff",
                         "biopython",
                         "networkx",
+                        "numpy",
+                        dependency_links = [
+                            'https://github.com/simonvh/gimmemotifs/archive/0.8.3.tar.gz',
+                             ]
                         ],
         cmdclass = {'test': PyTest},
 )
