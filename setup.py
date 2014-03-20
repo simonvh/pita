@@ -46,6 +46,6 @@ setup (name = 'pita',
                         ],
         dependency_links = [
                         'https://github.com/simonvh/gimmemotifs/archive/0.8.3.tar.gz',
-                        ]
+                        ],
         cmdclass = {'test': PyTest},
 )
