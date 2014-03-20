@@ -36,6 +36,7 @@ setup (name = 'pita',
         data_files=[],
         tests_require=['pytest'],
         install_requires=[
+                        "gimmemotifs >= 0.8.3",
                         "pysam >= 0.7.4",
                         "pyyaml",
                         "HTSeq",
@@ -45,7 +46,7 @@ setup (name = 'pita',
                         "numpy",
                         ],
         dependency_links = [
-                        'https://github.com/simonvh/gimmemotifs/archive/0.8.3.tar.gz',
+                        'https://github.com/simonvh/gimmemotifs/archive/0.8.3.tar.gz#egg=gimmemotifs-0.8.3',
                         ],
         cmdclass = {'test': PyTest},
 )
