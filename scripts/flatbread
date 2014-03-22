@@ -68,9 +68,11 @@ for f in config["annotation"]:
 for f in config['data']:
     for p in f['path']:
         if not os.path.exists(p):
-            os.symlink(os.path.join(base, p), os.path.join(outname, p))
-            if p.endswith("bam"):
-                os.symlink(os.path.join(base, p + ".bai"), os.path.join(outname, p + ".bai"))
+            p = os.path.join(base, p)
+        p = os.path.realpath("bla") 
+        os.symlink(p, os.path.join(outname, p))
+        if p.endswith("bam"):
+        os.symlink(os.path.realpath(os.path.join(p + ".bai")), os.path.join(outname, p + ".bai"))
 
 config["data_path"] = os.path.abspath(outname)
 
