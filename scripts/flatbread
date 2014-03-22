@@ -5,6 +5,8 @@ import sys
 import yaml
 import argparse
 import pybedtools
+import subprocess as sp
+from tempfile import NamedTemporaryFile
 
 p = argparse.ArgumentParser()
 p.add_argument("-c",
@@ -55,6 +57,7 @@ config["chromosomes"] = chroms.keys()
 # Do all intersections with BED file
 for f in config["annotation"]:
     path = f['path']
+    sys.stderr.write("Filtering {0}\n".format(path))
     if not os.path.exists(path):
         path = os.path.join(base, path)
     if not os.path.exists(path):
@@ -69,10 +72,25 @@ for f in config['data']:
     for p in f['path']:
         if not os.path.exists(p):
             p = os.path.join(base, p)
-        p = os.path.realpath("bla") 
-        os.symlink(p, os.path.join(outname, p))
+        out = os.path.join(outname, os.path.basename(p))
+        sys.stderr.write("Filtering {0}\n".format(p)) 
+
         if p.endswith("bam"):
-        os.symlink(os.path.realpath(os.path.join(p + ".bai")), os.path.join(outname, p + ".bai"))
+            tmp = NamedTemporaryFile(prefix="pita.flatbread.")
+            cmd = "samtools view -H {0} > {1}".format(p, tmp.name)
+            sp.call(cmd, shell=True) 
+            for line in open(bedfile):
+                vals = line.strip().split()
+                loc = "{0}:{1}-{2}".format(vals[0], vals[1], vals[2])
+                cmd = "samtools view {0} {1} >> {2}".format(p, loc, tmp.name)
+                sp.call(cmd, shell=True) 
+            cmd = "samtools view -bS {0} > {1} && samtools index {1}"
+            sp.call(cmd.format(tmp.name, out), shell=True)
+            tmp.close()
+        else:
+            a = pybedtools.BedTool(p)
+            b = pybedtools.BedTool(bedfile)
+            a.intersect(b, wa=True).saveas(out)
 
 config["data_path"] = os.path.abspath(outname)
 
