@@ -3,6 +3,7 @@ from subprocess import Popen, PIPE
 from Bio.Seq import Seq
 from Bio.Alphabet import IUPAC
 import re
+import sys
 
 def read_statistics(fname, rmrepeat=False, rmdup=False, mapped=False):
     """ Count number of reads in BAM file.
@@ -51,15 +52,21 @@ def exons_to_seq(exons):
 def longest_orf(seq, do_prot=False):
     if type(seq) == type([]):
         seq = exons_to_seq(seq)
-    dna = Seq(seq, IUPAC.ambiguous_dna)
     
+    dna = Seq(seq, IUPAC.ambiguous_dna)
+     
     my_cmp = lambda x,y: cmp(len(x), len(y))
 
     orfs = []
     prots = []
     for i in range(3):
         seq = dna[i:]
-        seq = seq[:-len(seq) % 3]
+        
+        # BioPython doesn't like translating DNA with a length that's not
+        # a multiple of 3
+        if len(seq) % 3:
+            seq = seq[:-(len(seq) % 3)]
+        
         prot = str(seq.translate())
         #putative_orfs = [re.sub(r'^[^M]*', "", o) for o in prot.split("*")]
         putative_orfs = [o for o in prot.split("*")]
@@ -68,6 +75,7 @@ def longest_orf(seq, do_prot=False):
         start = prot.find(longest) * 3 + i
         end = start + (len(longest) + 1) * 3
         orfs.append((start,end))
+    
     if do_prot:
         return sorted(prots, cmp=lambda x,y: cmp(len(x), len(y)))[-1]
     else:
