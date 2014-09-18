@@ -121,6 +121,13 @@ def get_chrom_models(chrom, anno_files, data, weight, prune=None, index=None):
                     m1 = models[gene1][1]
                     m2 = models[gene2][1]
                 
+                    loc1,loc2 = sorted(m1, m2, cmp=lambda x,y: cmp(x[0].start, y[0].start))
+                    logger.info("Pruning {} vs. {}".format(str(m1),str(m2)))
+                    logger.info("1: {}, 2: {}, overlap: {}".format(
+                        loc1[-1].end - loc1[0].start,
+                        loc2[-1].end - loc2[0].start,
+                        loc1[-1].end - loc2[0].start))
+
                     w1 = 0.0
                     w2 = 0.0
                     for d in prune:
