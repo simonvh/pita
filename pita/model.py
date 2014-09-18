@@ -55,7 +55,9 @@ def get_chrom_models(chrom, anno_files, data, weight, prune=None, index=None):
         logger.info("Calling transcripts for {0}".format(chrom))
         for cluster in mc.get_connected_models():
             while len(cluster) > 0:
+                logger.debug("best model")
                 best_model = mc.max_weight(cluster, weight)
+                logger.debug("best variant")
                 best_model = mc.get_best_variant(best_model, weight)                
                  
                 genename = "{0}:{1}-{2}_".format(
@@ -64,6 +66,7 @@ def get_chrom_models(chrom, anno_files, data, weight, prune=None, index=None):
                                             best_model[-1].end,
                                             )
             
+                logger.debug("get weight RNAseq")
                 rpkm = mc.get_weight(best_model, "RNAseq", "rpkm") 
                 if rpkm >= 0.2:
                     genename += "V"

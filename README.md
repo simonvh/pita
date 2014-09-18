@@ -11,9 +11,9 @@ The following Python modules are required:
 
 * GFF parser - http://github.com/chapmanb/bcbb/tree/master/gff
 * Biopython - http://biopython.org/
-* pysam (version 0.7.4)
+* pysam (>= 0.7.4)
 * pyyaml
-* networkx
+* networkx (>= 1.9)
 
 Installation
 ------------

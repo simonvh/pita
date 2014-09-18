@@ -8,6 +8,8 @@ import logging
 import pickle
 from networkx.algorithms.components.connected import connected_components
 import networkx as nx 
+from networkx.algorithms.connectivity import minimum_st_node_cut
+from networkx.algorithms.flow import ford_fulkerson
 from itertools import izip, count
 from gimmemotifs.genome_index import GenomeIndex
 
@@ -149,12 +151,11 @@ class Collection:
     def get_node_cuts(self, model):
         
         node_cuts = []
-        cuts = list(nx.minimum_st_node_cut(self.graph, model[0], model[-1]))
+        cuts = list(minimum_st_node_cut(self.graph, model[0], model[-1], flow_func=ford_fulkerson))
         while len(cuts) == 1:
-            node_cuts += cuts
-            cuts = list(nx.minimum_st_node_cut(self.graph, cuts[-1], model[-1]))
-        
-        return node_cuts 
+            node_cuts = cuts + node_cuts
+            cuts = list(minimum_st_node_cut(self.graph, model[0], cuts[0], flow_func=ford_fulkerson))
+        return node_cuts
 
     def get_best_variant(self, model, weight):
         
@@ -163,15 +164,21 @@ class Collection:
 
         nodeset = self.get_node_cuts(model)
         if len(list(nodeset)) > 0:
+            self.logger.debug("option 1")
+            self.logger.debug("{}".format(str(nodeset)))
             nodeset = [model[0]] + list(nodeset) + [model[-1]]
+            self.logger.debug("got nodeset")
             best_variant = [model[0]]
             for n1,n2 in zip(nodeset[:-1], nodeset[1:]):
+                self.logger.debug("{} {}".format(str(n1), str(n2)))
                 variants = [m for m in self.all_simple_paths(n1, n2)]
+                self.logger.debug("Got {} variants".format(len(variants)))
                 best_variant += self.max_weight(variants, weight)[1:]
+                self.logger.debug("Best variant".format(best_variant))
         else:
-                variants = [m for m in self.all_simple_paths(model[0], model[-1])]
-                best_variant = self.max_weight(variants, weight)
-        
+            variants = [m for m in self.all_simple_paths(model[0], model[-1])]
+            best_variant = self.max_weight(variants, weight)
+      
         return best_variant
 
     def prune(self):
