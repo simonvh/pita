@@ -30,6 +30,7 @@ setup (name = 'pita',
         scripts=[
             "scripts/pita",
             "scripts/bed12togff3",
+            "scripts/gff3tobed12",
             "scripts/flatbread",
             "scripts/breadcrumb",
         ],
