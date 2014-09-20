@@ -89,31 +89,34 @@ def read_bed_transcripts(fobj, fname="", min_exons=1, merge=0):
             #logger.debug(line)
             try:
                 vals = line.strip().split("\t")
-                # More than one exon
-                chromStart = int(vals[1])
-                if int(vals[9]) > 1:
-                    sizes = [int(x) for x in vals[10].strip(",").split(",")]
-                    starts = [int(x) for x in vals[11].strip(",").split(",")] 
-                    
-                    starts, sizes = merge_exons(starts, sizes, l=merge)
-                    
-                    i = 1
+                
+                i = 1
+                name = "%s_%s_%s" % (vals[0], vals[3], i)
+                while names.has_key(name):
+                    i += 1
                     name = "%s_%s_%s" % (vals[0], vals[3], i)
-                    while names.has_key(name):
-                        i += 1
-                        name = "%s_%s_%s" % (vals[0], vals[3], i)
-                    names[name] = 1
-                        
-                    logger.debug("read_bed: adding {0}".format(vals[3]))
-                    exons = [[vals[0], 
-                              chromStart + start, 
-                              chromStart + start + size, 
-                             vals[5]]
-                             for start, size in zip(starts, sizes)
-                             ]
+                names[name] = 1
+                
+                chromStart = int(vals[1])
+                
+                sizes = [int(x) for x in vals[10].strip(",").split(",")]
+                starts = [int(x) for x in vals[11].strip(",").split(",")] 
                     
-                    if len(exons) >= min_exons:
-                        transcripts.append([name, fname, exons])
+                starts, sizes = merge_exons(starts, sizes, l=merge)
+                
+                exons = [[vals[0], 
+                          chromStart + start, 
+                          chromStart + start + size, 
+                          vals[5]]
+                          for start, size in zip(starts, sizes)
+                         ]
+                    
+                if len(exons) >= min_exons:
+                    logger.debug("read_bed: adding {0}".format(vals[3]))
+                    transcripts.append([name, fname, exons])
+                else:
+                    logger.debug("read_bed: not adding {0}, filter on minimum exons".format(vals[3]))
+            
             except:
                 print "Error parsing BED file"
                 print line

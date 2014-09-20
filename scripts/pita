@@ -96,6 +96,9 @@ for d in config["annotation"]:
     logger.debug("annotation: {0}".format(d))
     fname = os.path.join(base, d["path"])
     t = d["type"].lower()
+    min_exons = 2
+    if d.has_key("min_exons"):
+        min_exons = d["min_exons"]
     if not t in VALID_TYPES:
         logger.error("Invalid type: {0}".format(t))
         sys.exit(1)
@@ -127,7 +130,7 @@ for d in config["annotation"]:
         
         #fobj = pysam.Tabixfile(tabix_file)
         # Add file info
-        anno_files.append([d["name"], tabix_file, t])
+        anno_files.append([d["name"], tabix_file, t, min_exons])
         # Save chromosome names
         for chrom in pysam.Tabixfile(tabix_file).contigs:
             chroms[chrom] = 1

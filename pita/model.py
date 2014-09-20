@@ -16,16 +16,16 @@ def get_chrom_models(chrom, anno_files, data, weight, prune=None, index=None):
         # Read annotation files
         mc = Collection(index)
         logger.info("Reading annotation for {0}".format(chrom))
-        for name, fname, ftype in anno_files:
+        for name, fname, ftype, min_exons in anno_files:
             logger.debug("Reading annotation from {0}".format(fname))
             tabixfile = pysam.Tabixfile(fname)
             #tabixfile = fname
             if chrom in tabixfile.contigs:
                 fobj = TabixIteratorAsFile(tabixfile.fetch(chrom))
                 if ftype == "bed":
-                    it = read_bed_transcripts(fobj, fname, min_exons=2, merge=10)
+                    it = read_bed_transcripts(fobj, fname, min_exons=min_exons, merge=10)
                 elif ftype in ["gff", "gtf", "gff3"]:
-                    it = read_gff_transcripts(fobj, fname, min_exons=2, merge=10)
+                    it = read_gff_transcripts(fobj, fname, min_exons=min_exons, merge=10)
                 for tname, source, exons in it:
                     mc.add_transcript("{0}{1}{2}".format(name, SEP, tname), source, exons)
                 del fobj    
@@ -111,9 +111,17 @@ def get_chrom_models(chrom, anno_files, data, weight, prune=None, index=None):
         
         discard = {}
         if prune:
-            logger.debug("Prune: {0}".format(prune))
+            #logger.debug("Prune: {0}".format(prune))
             overlap = get_overlapping_models([x[0] for x in exons.values()])
-            logger.debug("{0} overlapping exons".format(len(overlap)))
+            #logger.debug("{0} overlapping exons".format(len(overlap)))
+            
+            gene_count = {}
+            for e1, e2 in overlap:
+                gene1 = exons[str(e1)][1]
+                gene2 = exons[str(e2)][1]
+                gene_count[gene1] = gene_count.setdefault(gene1, 0) + 1
+                gene_count[gene2] = gene_count.setdefault(gene2, 0) + 1
+
             for e1, e2 in overlap:
                 gene1 = exons[str(e1)][1]
                 gene2 = exons[str(e2)][1]
@@ -121,13 +129,26 @@ def get_chrom_models(chrom, anno_files, data, weight, prune=None, index=None):
                     m1 = models[gene1][1]
                     m2 = models[gene2][1]
                 
-                    loc1,loc2 = sorted(m1, m2, cmp=lambda x,y: cmp(x[0].start, y[0].start))
-                    logger.info("Pruning {} vs. {}".format(str(m1),str(m2)))
-                    logger.info("1: {}, 2: {}, overlap: {}".format(
-                        loc1[-1].end - loc1[0].start,
-                        loc2[-1].end - loc2[0].start,
-                        loc1[-1].end - loc2[0].start))
+                    loc1,loc2 = sorted([m1, m2], cmp=lambda x,y: cmp(x[0].start, y[0].start))
+                    l1 = float(loc1[-1].end - loc1[0].start)
+                    l2 = float(loc2[-1].end - loc2[0].start)
+                    if loc2[-1].end > loc1[-1].end:
+                        overlap = float(loc1[-1].end - loc2[0].start)
+                    else:
+                        overlap = l2
 
+                    #logger.info("Pruning {} vs. {}".format(str(m1),str(m2)))
+                    logger.info("1: {}, 2: {}, overlap: {}".format(
+                        l1, l2, overlap))
+                    logger.info("Gene {} count {}, gene {} count {}".format(
+                        str(gene1), gene_count[gene1], str(gene2), gene_count[gene2]
+                        ))
+                   
+                    prune_overlap = 0.1
+                    if overlap / l1 < prune_overlap and overlap / l2 < prune_overlap:
+                        logger.info("Not pruning!")
+                        continue
+                    
                     w1 = 0.0
                     w2 = 0.0
                     for d in prune:
