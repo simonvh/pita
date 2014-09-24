@@ -2,7 +2,7 @@ from distutils.core import setup
 from setuptools.command.test import test as TestCommand
 import sys
 
-VERSION = "1.62"
+VERSION = "1.7"
 DESCRIPTION = """
 pita - pita improves transcript annotation
 """
@@ -43,7 +43,7 @@ setup (name = 'pita',
                         "HTSeq",
                         "bcbio-gff",
                         "biopython",
-                        "networkx",
+                        "networkx >= 1.9",
                         "numpy",
                         ],
         cmdclass = {'test': PyTest},
