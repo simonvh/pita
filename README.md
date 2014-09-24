@@ -3,7 +3,7 @@ pita improves transcript annotation
 
 Pipeline to improve transcript annotation based on RNA-seq and ChIP-seq data.
 
-At the moment, it's still a mess. It will be updated to annotate the Xenopus laevis genome with based on experimental data.
+At the moment, it's still not in a stable state. It will be updated to annotate the Xenopus laevis genome based on experimental data.
 
 Prerequisites
 ------------
@@ -24,4 +24,5 @@ Installation
     # install prerequisites
     git clone git@bitbucket.org:simonvh/pita.git
     cd pita
+    python setup.py test
     sudo python setup.py install
