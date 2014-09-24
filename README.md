@@ -14,6 +14,9 @@ The following Python modules are required:
 * pysam (>= 0.7.4)
 * pyyaml
 * networkx (>= 1.9)
+* GimmeMotifs - http://github.com/simonvh/gimmemotifs
+* HTSeq - http://www-huber.embl.de/users/anders/HTSeq/doc/overview.html
+* numpy
 
 Installation
 ------------
