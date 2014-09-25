@@ -38,6 +38,11 @@ class Feature(Base):
     evidences = association_proxy('_evidences', 'evidence',
                     creator=lambda _i: FeatureEvidence(evidence=_i),
                 )
+    _read_counts = relationship('FeatureReadCount')
+    read_counts = association_proxy('_read_counts', 'read_count',
+                    creator=lambda _i: FeatureReadCount(read_count=_i),
+                )
+
 
 class Evidence(Base):
     __tablename__ = "evidence"
@@ -181,6 +186,9 @@ class AnnotationDb():
         #    self.nreads[name] = 0
 
         for i, fname in enumerate(fnames):
+            
+            read_source = get_or_create(self.session, ReadSource, name=name, source=fname)
+            
             if fname.endswith("bam") and (not nreads or not nreads[i]):
                 rmrepeats = True
                 self.logger.debug("Counting reads in {0}".format(fname))
@@ -196,10 +204,16 @@ class AnnotationDb():
             for row in result:
                 vals = row.strip().split("\t")
                 print vals
-            #    e = "%s:%s-%s" % (vals[0], vals[1], vals[2])
-            #    c = float(vals[3])
-            #    estore[e].stats[name] = estore[e].stats.setdefault(name, 0) + c
-            #    self.graph.node[estore[e]][name] = -estore[e].stats[name]
+                e = "%s:%s-%s" % (vals[0], vals[1], vals[2])
+                c = float(vals[3])
+                exon = estore[e]
+                
+                count = get_or_create(self.session, FeatureReadCount,
+                            feature = exon,
+                            read_source = read_source)
 
+                count.count += c
+
+            self.session.commit()
         tmp.close()
 

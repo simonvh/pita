@@ -97,4 +97,8 @@ def test_read_statistics(bam_file, transcripts):
         d.add_transcript(name, source, exons)
    
     d.get_read_statistics(bam_file, "test")
+    
+    exons = d.get_exons()
+    counts = [e.read_counts[0].count for e in exons]
+    assert [1,64,300] == sorted(counts) 
     assert 1 == 0
