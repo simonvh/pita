@@ -2,91 +2,8 @@ import os
 import sys
 import logging
 from gimmemotifs.genome_index import GenomeIndex
-from sqlalchemy import Column, ForeignKey, Integer, String, UniqueConstraint
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import relationship,sessionmaker
-from sqlalchemy import create_engine, and_
-from sqlalchemy.ext.associationproxy import association_proxy
-
-Base = declarative_base()
-
-class FeatureEvidence(Base):
-    __tablename__ = 'feature_evidence'
-    feature_id = Column(Integer, ForeignKey('feature.id'), primary_key=True)
-    evidence_id = Column(Integer, ForeignKey('evidence.id'), primary_key=True)
-    evidence = relationship("Evidence")
-    feature = relationship("Feature")
-
-class Feature(Base):
-    __tablename__ = 'feature'
-    __table_args__ = (
-             UniqueConstraint(
-                'chrom', 
-                'start', 
-                'end', 
-                'strand', 
-                'ftype',
-                name='uix_1'),
-            )
-    id = Column(Integer, primary_key=True)
-    chrom = Column(String(250), nullable=False) 
-    start = Column(Integer, nullable=False) 
-    end = Column(Integer, nullable=False)
-    strand = Column(String(1), nullable=False)
-    ftype = Column(String(250), nullable=False) 
-    _evidences = relationship('FeatureEvidence')
-    evidences = association_proxy('_evidences', 'evidence',
-                    creator=lambda _i: FeatureEvidence(evidence=_i),
-                )
-    _read_counts = relationship('FeatureReadCount')
-    read_counts = association_proxy('_read_counts', 'read_count',
-                    creator=lambda _i: FeatureReadCount(read_count=_i),
-                )
-
-
-class Evidence(Base):
-    __tablename__ = "evidence"
-    id = Column(Integer, primary_key=True)
-    name = Column(String(50))
-    source = Column(String(50))
-
-class ReadSource(Base):
-    __tablename__ = "read_source"
-    id = Column(Integer, primary_key=True)
-    name = Column(String(250))
-    source = Column(String(250))
-
-class FeatureReadcount(Base):
-    __tablename__ = "read_count"
-    id = Column(Integer, primary_key=True)
-    read_source_id = Column(Integer, ForeignKey('read_source.id'), primary_key=True)
-    feature_id = Column(Integer, ForeignKey('feature.id'), primary_key=True)
-    read_source = relationship("ReadSource")
-    feature = relationship("Feature")
-    count = Column(Integer)
-    span = Column(String(50))
-    extend_up = Column(Integer)
-    extend_down = Column(Integer)
-
-#class Read(Base):
-#    __tablename__ = 'read'
-#    id = Column(Integer, primary_key=True)
-#    name = Column(String(250), nullable=False)
-
-#class SplicedRead(Base):
-#    __tablename__ = 'spliced_read'
-#    id = Column(Integer, primary_key=True)
-#    splice_id = Column(Integer, ForeignKey('splice.id'))
-#    read_id = Column(Integer, ForeignKey('read.id'))
-
-def get_or_create(session, model, **kwargs):
-    instance = session.query(model).filter_by(**kwargs).first()
-    if instance:
-        return instance
-    else:
-        instance = model(**kwargs)
-        session.add(instance)
-        return instance
+from sqlalchemy import and_
+from pita.db_backend import *
 
 class AnnotationDb():
     def __init__(self, new=False):
@@ -148,6 +65,15 @@ class AnnotationDb():
             it = self.session.query(Feature).filter(Feature.ftype == "exon")
         exons = [e for e in it]
         return exons
+    
+    def get_splice_junctions(self, chrom=None):
+        if chrom:
+            it = self.session.query(Feature).filter(and_(Feature.chrom == chrom, Feature.ftype == "splice_junction"))
+        else:
+            it = self.session.query(Feature).filter(Feature.ftype == "splice_junction")
+        exons = [e for e in it]
+        return exons
+
 
     def get_read_statistics(self, fnames, name, span="exon", extend=(0,0), nreads=None):
         from fluff.fluffio import get_binned_stats
@@ -188,7 +114,7 @@ class AnnotationDb():
         for i, fname in enumerate(fnames):
             
             read_source = get_or_create(self.session, ReadSource, name=name, source=fname)
-            
+            self.session.commit() 
             if fname.endswith("bam") and (not nreads or not nreads[i]):
                 rmrepeats = True
                 self.logger.debug("Counting reads in {0}".format(fname))
@@ -203,17 +129,53 @@ class AnnotationDb():
 
             for row in result:
                 vals = row.strip().split("\t")
-                print vals
                 e = "%s:%s-%s" % (vals[0], vals[1], vals[2])
                 c = float(vals[3])
                 exon = estore[e]
                 
                 count = get_or_create(self.session, FeatureReadCount,
-                            feature = exon,
-                            read_source = read_source)
-
-                count.count += c
+                            feature_id = exon.id,
+                            read_source_id = read_source.id)
+                self.session.commit()
+                if not count.count:
+                    count.count = c
+                else:
+                    count.count += c
 
             self.session.commit()
         tmp.close()
+
+    def get_splice_statistics(self, fnames, name):
+        if type("") == type(fnames):
+            fnames = [fnames]
+
+        nrsplice = {}
+        for fname in fnames:
+            read_source = get_or_create(self.session, ReadSource, name=name, source=fname)
+            self.session.commit()
+            for line in open(fname):
+                vals = line.strip().split("\t")
+                print vals
+                chrom = vals[0]
+                start, end, c = [int(x) for x in vals[1:4]]
+                strand = vals[5]
+                
+                splice = get_or_create(self.session, Feature,
+                             chrom = chrom,
+                             start = start,
+                             end = end,
+                             strand = strand,
+                             ftype = "splice_junction"
+                             ) 
+    
+                count = get_or_create(self.session, FeatureReadCount,
+                            feature_id = splice.id,
+                            read_source_id = read_source.id)
+                
+                if not count.count:
+                    count.count = c
+                else:
+                    count.count += c
+            
+            self.session.commit()    
 

@@ -53,11 +53,11 @@ def two_transcripts():
     return transcripts
 
 def test_create_db():
-    from pita.db import AnnotationDb
+    from pita.annotationdb import AnnotationDb
     d = AnnotationDb()
 
 def test_add_transcripts(three_transcripts):
-    from pita.db import AnnotationDb
+    from pita.annotationdb import AnnotationDb
     d = AnnotationDb(new=True)
     for name, source, exons in three_transcripts:
         d.add_transcript(name, source, exons)
@@ -91,7 +91,7 @@ def transcripts():
 #scaffold_1  18250000    18300000    300
 
 def test_read_statistics(bam_file, transcripts):
-    from pita.db import AnnotationDb
+    from pita.annotationdb import AnnotationDb
     d = AnnotationDb(new=True)
     for name, source, exons in transcripts:
         d.add_transcript(name, source, exons)
@@ -100,5 +100,24 @@ def test_read_statistics(bam_file, transcripts):
     
     exons = d.get_exons()
     counts = [e.read_counts[0].count for e in exons]
-    assert [1,64,300] == sorted(counts) 
-    assert 1 == 0
+    print counts
+    assert [1,64,300] == sorted(counts)
+
+
+@pytest.fixture
+def splice_file():
+    return "tests/data/splice_data.bed"
+
+def test_splice_statistics(transcripts, splice_file):
+    from pita.annotationdb import AnnotationDb
+    d = AnnotationDb(new=True)
+    for name, source, exons in transcripts:
+        d.add_transcript(name, source, exons)
+
+    d.get_splice_statistics(splice_file, "test")
+
+    splices = d.get_splice_junctions()
+    counts = [s.read_counts[0].count for s in splices]
+
+    assert 2 == len(splices)
+    assert [4,20] == counts
