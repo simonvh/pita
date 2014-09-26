@@ -1,6 +1,6 @@
 from sqlalchemy import Column, ForeignKey, Integer, String, UniqueConstraint
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import relationship,sessionmaker,mapper
+from sqlalchemy.orm import relationship,sessionmaker,mapper,scoped_session
 from sqlalchemy import create_engine, and_, event
 from sqlalchemy.ext.associationproxy import association_proxy
 from sqlalchemy.inspection import inspect
@@ -31,7 +31,7 @@ class Feature(Base):
     end = Column(Integer, nullable=False)
     strand = Column(String(1), nullable=False)
     ftype = Column(String(250), nullable=False) 
-    seq = Column(String(100000), default="") 
+    seq = Column(Text(), default="") 
     _evidences = relationship('FeatureEvidence')
     evidences = association_proxy('_evidences', 'evidence',
                     creator=lambda _i: FeatureEvidence(evidence=_i),

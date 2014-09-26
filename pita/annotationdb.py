@@ -11,19 +11,22 @@ from pita.util import read_statistics
 class AnnotationDb():
     def __init__(self, new=False, index=None):
         self.logger = logging.getLogger("pita")
-        self.session = db_session('mysql://pita:@localhost/pita', new)
+        self.Session = db_session('mysql://pita:@localhost/pita', new)
+        self.session = self.Session()
         
         if index:
             self.index = GenomeIndex(index)
         else:
             self.index = None
+    
+    def __destroy__(self):
+        self.session.close()
 
     def __enter__(self):
         return self
 
     def __exit__(self, type, value, traceback):
-            self.session.flush()
-            self.session.expunge_all()
+        self.session.close()
     
     def add_transcript(self, name, source, exons):
         """

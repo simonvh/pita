@@ -184,7 +184,7 @@ def init_worker():
 
 def print_output(alog, genename, exons, lock=None):
     print model_to_bed(exons, genename)
-    alog.log_to_file(genename, exons) 
+    #alog.log_to_file(genename, exons) 
 
     if lock:
         lock.acquire()

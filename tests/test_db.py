@@ -52,22 +52,6 @@ def two_transcripts():
     ]
     return transcripts
 
-def test_create_db():
-    from pita.annotationdb import AnnotationDb
-    d = AnnotationDb()
-    del d
-
-def test_add_transcripts(three_transcripts):
-    from pita.annotationdb import AnnotationDb
-    d = AnnotationDb(new=True)
-    for name, source, exons in three_transcripts:
-        d.add_transcript(name, source, exons)
-
-    assert 5 == len(d.get_exons())
-    assert 5 == len(d.get_exons("chr1"))
-    assert 0 == len(d.get_exons("chr2"))
-        
-    del d
 @pytest.fixture
 def bam_file():
     return "tests/data/H3K4me3.bam"
