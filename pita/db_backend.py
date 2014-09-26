@@ -31,27 +31,38 @@ class Feature(Base):
     end = Column(Integer, nullable=False)
     strand = Column(String(1), nullable=False)
     ftype = Column(String(250), nullable=False) 
+    seq = Column(String(100000), default="") 
     _evidences = relationship('FeatureEvidence')
     evidences = association_proxy('_evidences', 'evidence',
                     creator=lambda _i: FeatureEvidence(evidence=_i),
                 )
     read_counts = relationship('FeatureReadCount')
+   
+    def __str__(self):
+        return self.to_loc()
     
-    #read_counts = association_proxy('_read_counts', 'read_count',
-    #                creator=lambda _i: FeatureReadCount(read_count=_i),
-    #            )
+    def to_loc(self):
+        return "{}:{}{}{}".format(
+                self.chrom, self.start, self.strand, self.end
+                )
+    
+    def to_sloc(self):
+        return "{}{}{}".format(
+                self.start, self.strand, self.end
+                )
 
 class Evidence(Base):
     __tablename__ = "evidence"
     id = Column(Integer, primary_key=True)
-    name = Column(String(50))
-    source = Column(String(50))
+    name = Column(String(250))
+    source = Column(String(250))
 
 class ReadSource(Base):
     __tablename__ = "read_source"
     id = Column(Integer, primary_key=True)
     name = Column(String(250))
     source = Column(String(250))
+    nreads = Column(Integer)
 
 class FeatureReadCount(Base):
     __tablename__ = "read_count"

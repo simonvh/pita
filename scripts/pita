@@ -182,9 +182,9 @@ if config.has_key("chromosomes") and config["chromosomes"]:
 def init_worker():
     signal.signal(signal.SIGINT, signal.SIG_IGN)
 
-def print_output(alog, genename, exons,  ev, best_ev, other_ev, lock=None):
+def print_output(alog, genename, exons, lock=None):
     print model_to_bed(exons, genename)
-    alog.log_to_file(genename, exons,  ev, best_ev, other_ev ) 
+    alog.log_to_file(genename, exons) 
 
     if lock:
         lock.acquire()
@@ -208,15 +208,15 @@ def listener(q, names, append=False, lock=None):
         if m == 'kill':
             break
        
-        genename, exons,  ev, best_ev, other_ev = m
+        genename, exons = m
         logger.debug("calling print_output for {0}".format(genename))
-        print_output(alog, genename, exons,  ev, best_ev, other_ev, lock)
+        print_output(alog, genename, exons, lock)
 
 def annotate_chrom(chrom, q, anno_files, data, weight, prune, index):
     logger.info("Chromosome {0} started".format(chrom))
-    for genename, best_exons, ev, best_ev, other_ev in get_chrom_models(chrom, anno_files, data, weight, prune, index):
+    for genename, best_exons in get_chrom_models(chrom, anno_files, data, weight, prune, index):
         logger.debug("Putting {0} in print queue".format(genename))
-        q.put([genename, best_exons, ev, best_ev, other_ev])
+        q.put([genename, best_exons])
 
     logger.info("Chromosome {0} finished".format(chrom))
 
@@ -246,8 +246,8 @@ else:
         alog.add(name)
     
     for chrom in chroms:
-        for genename,best_exons, ev, best_ev, other_ev in get_chrom_models(chrom, anno_files, data, weight, prune, index):
-            print_output(alog, genename,best_exons, ev, best_ev, other_ev)
+        for genename,best_exons in get_chrom_models(chrom, anno_files, data, weight, prune, index):
+            print_output(alog, genename,best_exons)
 
 cdna_fh.close()
 protein_fh.close()

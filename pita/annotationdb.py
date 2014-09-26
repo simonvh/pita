@@ -3,20 +3,28 @@ import sys
 import logging
 from gimmemotifs.genome_index import GenomeIndex
 from sqlalchemy import and_
-from pita.db_backend import *
+from sqlalchemy.orm import joinedload
+from pita import db_session
+from pita.db_backend import * 
+from pita.util import read_statistics
 
 class AnnotationDb():
-    def __init__(self, new=False):
+    def __init__(self, new=False, index=None):
         self.logger = logging.getLogger("pita")
+        self.session = db_session('mysql://pita:@localhost/pita', new)
+        
+        if index:
+            self.index = GenomeIndex(index)
+        else:
+            self.index = None
 
-        self.engine = create_engine('sqlite:///pita_test.db')
-        if new:
-            Base.metadata.drop_all(self.engine)
-        Base.metadata.create_all(self.engine)
-        Base.metadata.bind = self.engine
-        DBSession = sessionmaker(bind=self.engine)
-        self.session = DBSession()
+    def __enter__(self):
+        return self
 
+    def __exit__(self, type, value, traceback):
+            self.session.flush()
+            self.session.expunge_all()
+    
     def add_transcript(self, name, source, exons):
         """
         Add a transcript to the database
@@ -38,12 +46,16 @@ class AnnotationDb():
         strand = exons[0][-1]
 
         for exon in exons:
+            seq = ""
+            if self.index:
+                seq = self.index.get_sequence(chrom, exon[1], exon[2], strand)
             exon = get_or_create(self.session, Feature,
                              chrom = chrom,
                              start = exon[1],
                              end = exon[2],
                              strand = strand,
-                             ftype = "exon"
+                             ftype = "exon",
+                             seq = seq
                              ) 
             exon.evidences.append(Evidence(name=name, source=source))
 
@@ -57,24 +69,37 @@ class AnnotationDb():
                              ) 
             sj.evidences.append(Evidence(name=name, source=source))
         self.session.commit()
+    
+    def get_features(self, ftype=None, chrom=None):
+        self.session.query(Feature).options(
+                joinedload('read_counts')).all()
+        
+        query = self.session.query(Feature)
+        if chrom:
+            query = query.filter(Feature.chrom == chrom)
+        if ftype:
+            query = query.filter(Feature.ftype == ftype)
+        features = [f for f in query]
+        return features
 
     def get_exons(self, chrom=None):
-        if chrom:
-            it = self.session.query(Feature).filter(and_(Feature.chrom == chrom, Feature.ftype == "exon"))
-        else:
-            it = self.session.query(Feature).filter(Feature.ftype == "exon")
-        exons = [e for e in it]
-        return exons
+        return self.get_features(ftype="exon", chrom=chrom)
     
     def get_splice_junctions(self, chrom=None):
-        if chrom:
-            it = self.session.query(Feature).filter(and_(Feature.chrom == chrom, Feature.ftype == "splice_junction"))
-        else:
-            it = self.session.query(Feature).filter(Feature.ftype == "splice_junction")
-        exons = [e for e in it]
-        return exons
+        return self.get_features(ftype="splice_junction", chrom=chrom)
 
+    def get_long_exons(self, l):
+        query = self.session.query(Feature)
+        query = query.filter(Feature.ftype == 'exon')
+        query = query.filter(Feature.end - Feature.start >= l)
+        return [e for e in query if len(e.evidences) == 1]
 
+#    def get_evidence_count(self, exon):
+#        query = self.session.query(Feature)
+#        query = query.filter(Feature.ftype == 'exon')
+#        query = query.filter(Feature.end - Feature.start >= l)
+#        return [e for e in query if len(e.evidences) == 1]
+    
     def get_read_statistics(self, fnames, name, span="exon", extend=(0,0), nreads=None):
         from fluff.fluffio import get_binned_stats
         from tempfile import NamedTemporaryFile
@@ -108,9 +133,6 @@ class AnnotationDb():
         if type("") == type(fnames):
             fnames = [fnames]
 
-        #if not self.nreads.has_key(name):
-        #    self.nreads[name] = 0
-
         for i, fname in enumerate(fnames):
             
             read_source = get_or_create(self.session, ReadSource, name=name, source=fname)
@@ -118,7 +140,7 @@ class AnnotationDb():
             if fname.endswith("bam") and (not nreads or not nreads[i]):
                 rmrepeats = True
                 self.logger.debug("Counting reads in {0}".format(fname))
-                #self.nreads[name] += read_statistics(fname)
+                read_source.nreads = read_statistics(fname)
             else:
                 rmrepeats = False
 
@@ -178,4 +200,46 @@ class AnnotationDb():
                     count.count += c
             
             self.session.commit()    
+    
+    def get_junction_exons(self, junction):
+        
+        left = self.session.query(Feature).filter(and_(
+            Feature.chrom == junction.chrom,
+            Feature.strand == junction.strand,
+            Feature.end == junction.start
+            ))
+        
+        right = self.session.query(Feature).filter(and_(
+            Feature.chrom == junction.chrom,
+            Feature.strand == junction.strand,
+            Feature.start == junction.end
+            ))
 
+        exon_pairs = []
+        for e1 in left:
+            for e2 in right:
+                exon_pairs.append((e1, e2))
+        return exon_pairs
+
+    def feature_stats(self, feature, identifier):
+        q = self.session.query(FeatureReadCount, ReadSource).join(ReadSource)
+        q = q.filter(FeatureReadCount.feature_id == feature.id)
+        q = q.filter(ReadSource.name == identifier)
+       
+        return sum([x[0].count for x in q.all()])
+
+    def splice_stats(self, exon1, exon2, identifier):
+        q = self.session.query(Feature)
+        q = q.filter(Feature.ftype == "splice_junction")
+        q = q.filter(Feature.chrom == exon1.chrom)
+        q = q.filter(Feature.strand == exon1.strand)
+        q = q.filter(Feature.start == exon1.end)
+        q = q.filter(Feature.end == exon2.start)
+
+        splice = q.first()
+        return self.feature_stats(splice, identifier)
+
+    def nreads(self, identifier):
+        q = self.session.query(ReadSource)
+        q = q.filter(ReadSource.name == identifier)
+        return sum([s.nreads for s in q.all()])
