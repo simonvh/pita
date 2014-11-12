@@ -212,11 +212,15 @@ def listener(q, names, append=False, lock=None):
         logger.debug("calling print_output for {0}".format(genename))
         print_output(alog, genename, exons, lock)
 
+def put_queue(q, data):
+    q.put(data)
+
 def annotate_chrom(chrom, q, anno_files, data, weight, prune, index):
     logger.info("Chromosome {0} started".format(chrom))
     for genename, best_exons in get_chrom_models(chrom, anno_files, data, weight, prune, index):
+        pass
         logger.debug("Putting {0} in print queue".format(genename))
-        q.put([genename, best_exons])
+        put_queue(q, [genename, best_exons])
 
     logger.info("Chromosome {0} finished".format(chrom))
 

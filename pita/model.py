@@ -15,7 +15,7 @@ def get_chrom_models(chrom, anno_files, data, weight, prune=None, index=None):
     
     try:
         # Read annotation files
-        db = AnnotationDb(new=True, index=index)
+        db = AnnotationDb(new=False, index=index)
         logger.info("Reading annotation for {0}".format(chrom))
         for name, fname, ftype, min_exons in anno_files:
             logger.info("Reading annotation from {0}".format(fname))
@@ -37,7 +37,7 @@ def get_chrom_models(chrom, anno_files, data, weight, prune=None, index=None):
         #for p in mc.prune():
         #    logger.debug("Pruning {0}:{1}-{2}".format(*p))
 
-        mc = DbCollection(db)
+        mc = DbCollection(db, chrom)
         # Remove long exons with only one evidence source
         mc.filter_long(l=2000)
         # Remove short introns
@@ -46,10 +46,10 @@ def get_chrom_models(chrom, anno_files, data, weight, prune=None, index=None):
 
         for name, fname, span, extend in data:
             if span == "splice":
-                logger.debug("Reading splice data {0} from {1}".format(name, fname))
+                logger.info("Reading splice data {0} from {1}".format(name, fname))
                 db.get_splice_statistics(fname, name=name)
             else:
-                logger.debug("Reading BAM data {0} from {1}".format(name, fname))
+                logger.info("Reading BAM data {0} from {1}".format(name, fname))
                 db.get_read_statistics(fname, name=name, span=span, extend=extend, nreads=None)
         
         models = {}
@@ -67,7 +67,7 @@ def get_chrom_models(chrom, anno_files, data, weight, prune=None, index=None):
                                             best_model[-1].end,
                                             )
                    
-                logger.debug("Best model: {0} with {1} exons".format(genename, len(best_model)))
+                logger.info("Best model: {0} with {1} exons".format(genename, len(best_model)))
                 models[genename] = [genename, best_model]
 #            
 #                for exon in best_model:
@@ -134,6 +134,8 @@ def get_chrom_models(chrom, anno_files, data, weight, prune=None, index=None):
 #        
 #        del c
 #    
+        
+        logger.info("Done calling transcripts for {0}".format(chrom))
         return [v for m,v in models.items() if not m in discard]
 
     except:

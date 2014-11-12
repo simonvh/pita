@@ -8,7 +8,6 @@ def db_session(conn, new=True):
         db_session.engine = engine
         if new:
             Base.metadata.drop_all(db_session.engine)
-        sys.stderr.write("Creating tables")
         Base.metadata.create_all(engine)
         Base.metadata.bind = engine
         db_session.session = scoped_session(sessionmaker(bind=engine))

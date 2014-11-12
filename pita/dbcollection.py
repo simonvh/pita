@@ -37,7 +37,7 @@ def connected_models(graph):
         yield paths
 
 class DbCollection:
-    def __init__(self, db):
+    def __init__(self, db, chrom=None):
         # dict with chrom as key
         self.logger = logging.getLogger("pita")
         
@@ -52,10 +52,10 @@ class DbCollection:
         # Store extension used in BAM statistics
         self.extend = {}
 
-        for exon in self.db.get_exons():
+        for exon in self.db.get_exons(chrom):
             self.add_feature(exon)
         
-        for junction in self.db.get_splice_junctions():
+        for junction in self.db.get_splice_junctions(chrom):
             self.add_feature(junction)
 
     def add_feature(self, feature):
