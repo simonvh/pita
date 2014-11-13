@@ -73,9 +73,15 @@ def transcripts():
 @pytest.yield_fixture
 def db(transcripts):
     from pita.annotationdb import AnnotationDb
-    with AnnotationDb(new=True) as d:
+    with AnnotationDb(conn="sqlite:////tmp/pita_test.db", new=True) as d:
         for name, source, exons in transcripts:
             d.add_transcript(name, source, exons)
+        yield d
+
+@pytest.yield_fixture
+def empty_db():
+    from pita.annotationdb import AnnotationDb
+    with AnnotationDb(conn="sqlite:////tmp/pita_test.db", new=True) as d:
         yield d
 #scaffold_1  18070000    18080000    64
 #scaffold_1  18080000    18200000    1092
@@ -151,4 +157,21 @@ def test_get_long_exons(db):
     assert 1 == len(db.get_long_exons(50000))
     assert 2 == len(db.get_long_exons(10000))
     assert 3 == len(db.get_long_exons(50))
+
+def test_load_yaml(empty_db):
+    db = empty_db
+    db.load_yaml("tests/data/merge1.yaml")
+    db.load_yaml("tests/data/merge2.yaml")
+
+    for e in db.get_exons():
+        print str(e)
+    
+    assert 6 == len([e for e in db.get_exons()])
+    
+    l = [len(e.evidences) for e in db.get_exons()]
+    print l
+    assert sorted(l) == [1,1,1,1,2,2]
+
+
+
 

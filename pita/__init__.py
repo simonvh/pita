@@ -5,6 +5,7 @@ from pita.db_backend import *
 def db_session(conn, new=True):
     if not hasattr(db_session, 'session') or not db_session.session:
         engine = create_engine(conn)
+        engine.raw_connection().connection.text_factory = str
         db_session.engine = engine
         if new:
             Base.metadata.drop_all(db_session.engine)

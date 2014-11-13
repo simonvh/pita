@@ -1,0 +1,25 @@
+read_source:
+        - [1,H3K4me3,/home/simon/prj/laevis/pita/data/H3K4me3_stage14_300.PE.bam,244989632]
+        - [2,RNAseq,/home/simon/prj/laevis/pita/data/C022YABXX_8_2170.sorted.bam,139030053]
+
+feature:
+        - [1, chr1,181322,181786,-,exon,""]
+        - [2, chr1,187341,187455,-,exon,""]
+        - [3, chr1,188581,188699,-,exon,""]
+
+read_count:
+        - [1,1,1,all,0,0]
+        - [1,2,10,all,0,0]
+        - [1,3,100,all,0,0]
+        - [2,1,5,all,0,0]
+        - [2,2,25,all,0,0]
+        - [2,3,125,all,0,0]
+
+evidence:
+        - [1, "est1", "file1"]
+
+feature_evidence:
+        - [1,1]
+        - [2,1]
+        - [3,1]
+

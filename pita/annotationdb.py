@@ -7,11 +7,12 @@ from sqlalchemy.orm import joinedload
 from pita import db_session
 from pita.db_backend import * 
 from pita.util import read_statistics
+import yaml
 
 class AnnotationDb():
-    def __init__(self, new=False, index=None):
+    def __init__(self, conn='mysql://pita:@localhost/pita', new=False, index=None):
         self.logger = logging.getLogger("pita")
-        self.Session = db_session('mysql://pita:@localhost/pita', new)
+        self.Session = db_session(conn, new)
         self.session = self.Session()
         
         if index:
@@ -27,6 +28,72 @@ class AnnotationDb():
 
     def __exit__(self, type, value, traceback):
         self.session.close()
+    
+    def dump_yaml(self):
+        dump_dict = {}
+        dump_dict['feature'] = [[f.id, f.chrom.encode('ascii','ignore'), f.start, f.end, f.strand.encode('ascii','ignore'), f.ftype.encode('ascii','ignore'), f.seq.encode('ascii','ignore')] for f in self.session.query(Feature)]
+        
+        dump_dict['read_source'] = [[r.id, r.name.encode('ascii','ignore'), r.source.encode('ascii','ignore'), r.nreads] for r in self.session.query(ReadSource)]
+
+        dump_dict['read_count'] = [[r.read_source_id, r.feature_id, r.count,r.span.encode('ascii','ignore'),r.extend_up, r.extend_down] for r in self.session.query(FeatureReadCount)]
+        
+        dump_dict['evidence'] = [[r.id, r.name.encode('ascii','ignore'), r.source.encode('ascii','ignore')] for r in self.session.query(Evidence)]
+        
+        dump_dict['feature_evidence'] = [[r.feature_id, r.evidence_id] for r in self.session.query(FeatureEvidence)]
+
+        return yaml.dump(dump_dict)
+    
+    
+    def load_yaml(self, fname):
+        data = yaml.load(open(fname))
+        source_map = {}
+        for old_id,name,fname,nreads in data['read_source']:
+            r = get_or_create(self.session, ReadSource,
+                    name=name, source=fname, nreads=nreads)
+            self.session.commit()
+            source_map[old_id] = r.id
+    
+    
+        t = ["chrom","start","end","strand","ftype","seq"]
+        result = db_session.engine.execute(
+            Feature.__table__.insert(),
+            [dict(zip(t, row[1:])) for row in data['feature']]
+            )
+    
+        first = self.fetch_feature(data['feature'][0][1:])
+        last = self.fetch_feature(data['feature'][-1][1:])
+    
+        f_map = dict(zip([x[0] for x in data['feature']], range(first.id, last.id + 1)))
+        data['read_count'] = [
+                [source_map[row[0]]] + [f_map[row[1]]] + row[2:] for row in data['read_count']
+            ]
+        t = ["read_source_id", "feature_id", "count", "span", "extend_up", "extend_down"]
+    
+        result = db_session.engine.execute(
+            FeatureReadCount.__table__.insert(),
+            [dict(zip(t, row)) for row in data['read_count']]
+            )
+    
+        t = ["name","source"]
+        result = db_session.engine.execute(
+            Evidence.__table__.insert(),
+            [dict(zip(t, row[1:])) for row in data['evidence']]
+            )
+    
+        first = self.fetch_evidence(data['evidence'][0][1:])
+        last = self.fetch_evidence(data['evidence'][-1][1:])
+    
+        ev_map = dict(zip([x[0] for x in data['evidence']], range(first.id, last.id + 1)))
+    
+        data['feature_evidence'] = [
+                [f_map[row[0]], ev_map[row[1]]] for row in data['feature_evidence']
+            ]
+    
+        t = ["feature_id", "evidence_id"]
+        result = db_session.engine.execute(
+            FeatureEvidence.__table__.insert(),
+            [dict(zip(t, row)) for row in data['feature_evidence']]
+            )
     
     def add_transcript(self, name, source, exons):
         """
@@ -246,3 +313,28 @@ class AnnotationDb():
         q = self.session.query(ReadSource)
         q = q.filter(ReadSource.name == identifier)
         return sum([s.nreads for s in q.all()])
+
+    def fetch_feature(self, f):
+        """ Feature as list """
+        chrom, start, end, strand, ftype, seq = f
+        feature = self.session.query(Feature).filter(and_(
+                Feature.chrom == chrom,
+                Feature.start == start,
+                Feature.end == end,
+                Feature.strand == strand,
+                Feature.ftype == ftype,
+                Feature.seq == seq,
+                ))
+    
+        return feature[0]
+    
+    def fetch_evidence(self, f):
+        """ Feature as list """
+        name, source = f
+        evidence = self.session.query(Evidence).filter(and_(
+            Evidence.name == name,
+            Evidence.source == source
+            ))
+
+        return evidence[0]
+

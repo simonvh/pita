@@ -1,24 +1,17 @@
 #!/usr/bin/env python
 from pita.model import get_chrom_models
 from pita.util import model_to_bed, read_statistics, exons_to_seq, longest_orf
-from pita.log import AnnotationLog
+from pita.log import setup_logging
+from pita.config import PitaConfig
 import os
 import sys
-import logging
-import yaml
 import argparse
-import pysam
-import subprocess
-import pp
-from tempfile import NamedTemporaryFile
 import multiprocessing as mp
 from functools import partial
 import signal
 
 DEFAULT_CONFIG = "pita.yaml"
 DEFAULT_THREADS = 4
-VALID_TYPES = ["bed", "gff", "gff3", "gtf"]
-DEBUG_LEVELS = ["CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"]
 
 p = argparse.ArgumentParser()
 p.add_argument("-c",
@@ -54,137 +47,23 @@ if not os.path.exists(configfile):
 
 threads = args.threads
 index = args.index_dir
-debug_level = args.debug_level.upper()
-
-if not debug_level in DEBUG_LEVELS:
-    sys.stderr.write("Invalid debug level {0}\n".format(debug_level))
-    sys.stderr.write("Valid values are {0}\n".format(",".join(DEBUG_LEVELS)))
-    sys.exit(1)
+debug_level = args.debug_level
 
 basename = os.path.splitext(configfile)[0]
 
 # Setup logging
-logger = logging.getLogger("pita")
-logger.setLevel(getattr(logging, debug_level))
-formatter = logging.Formatter(fmt='%(asctime)s - %(levelname)s - %(module)s - %(message)s')
-handler = logging.StreamHandler()
-handler.setFormatter(formatter)
-handler.setLevel(getattr(logging, debug_level))
-fh = logging.FileHandler("{0}.log".format(basename))
-fh.setFormatter(formatter)
-fh.setLevel(getattr(logging, debug_level))
-logger.addHandler(handler)
-logger.addHandler(fh)
+logger = setup_logging(basename, debug_level)
 
-# Parse YAML config file
-f = open(configfile, "r")
-config = yaml.load(f)
-
-# Data directory
-base = "."
-if config.has_key("data_path"):
-    base = config["data_path"]
+# Load config file
+config = PitaConfig(configfile)
 
 # FASTA output
 protein_fh = open("{0}.protein.fa".format(basename), "w")
 cdna_fh = open("{0}.cdna.fa".format(basename), "w")
 
-prune = None
-if config.has_key("prune_overlap"):
-    prune = config["prune_overlap"]
-
-if not config.has_key("annotation") or len(config["annotation"]) == 0:
-    logger.error("No annotation files specified.")
-    sys.exit(1)
-
-anno_files = []
-chroms = {}
-for d in config["annotation"]:
-    logger.debug("annotation: {0}".format(d))
-    fname = os.path.join(base, d["path"])
-    t = d["type"].lower()
-    min_exons = 2
-    if d.has_key("min_exons"):
-        min_exons = d["min_exons"]
-    if not t in VALID_TYPES:
-        logger.error("Invalid type: {0}".format(t))
-        sys.exit(1)
-    if not os.path.exists(fname):
-        logger.error("File does not exist: {0}".format(fname))
-        sys.exit(1)
-    else:
-        logger.info("Creating tabix index for {0}".format(os.path.basename(fname)))
-        logger.debug("Preparing {0} for tabix".format(fname))
-        tmp = NamedTemporaryFile(prefix="pita")
-        preset = "gff"
-        if t == "bed":
-            cmd = "sort -k1,1 -k2g,2 {0} | grep -v track | grep -v \"^#\" > {1}"
-            preset = "bed"
-        elif t in ["gff", "gff3", "gtf3"]:
-            cmd = "sort -k1,1 -k4g,4 {0} | grep -v \"^#\" > {1}"
-        
-        # Sort the input file
-        logger.debug(cmd.format(fname, tmp.name))
-        subprocess.call(cmd.format(fname, tmp.name), shell=True)
-        # Compress using bgzip
-        logger.debug("compressing {0}".format(tmp.name))
-        tabix_file = tmp.name + ".gz"
-        pysam.tabix_compress(tmp.name, tabix_file)
-        tmp.close()
-        # Index (using tabix command line, as pysam.index results in a Segmentation fault
-        logger.debug("indexing {0}".format(tabix_file))
-        subprocess.call("tabix {0} -p {1}".format(tabix_file, preset), shell=True)
-        
-        #fobj = pysam.Tabixfile(tabix_file)
-        # Add file info
-        anno_files.append([d["name"], tabix_file, t, min_exons])
-        # Save chromosome names
-        for chrom in pysam.Tabixfile(tabix_file).contigs:
-            chroms[chrom] = 1
-
-# data  config
-logger.info("Checking data files")
-data = []
-if config.has_key("data") and config["data"]:
-    for d in config["data"]:
-        logger.debug("data: {0}".format(d))
-        d.setdefault("up", 0)
-        d.setdefault("down", 0)
-        if type("") == type(d["path"]):
-            d["path"] = [d["path"]]
-       
-
-        names_and_stats = []
-        fnames = [os.path.join(base, x) for x in d["path"]]
-        for fname in fnames:
-            if not os.path.exists(fname):
-                logger.error("File does not exist: {0}".format(fname))
-                sys.exit(1)
-          
-            if fname.endswith("bam") and not os.path.exists(fname + ".bai"):
-                logger.error("BAM file {0} needs to be indexed!".format(fname))
-                sys.exit(1)
-
-            #if fname.endswith("bam"):
-            #    names_and_stats.append((fname, read_statistics(fname)))
-            #else:
-             #   names_and_stats.append((fname, None))
-        row = [d["name"], fnames, d["feature"], (d["up"], d["down"])]
-        data.append(row)
-
-weight = {}
-if config.has_key("scoring"):
-    weight = config["scoring"]
-
 line_format = "{0}\t{1}\t{2}\t{3}\t{4}\t{5}\t{6}\t{7}\t{8}\t{9}\t{10}\t{11}"
 print 'track name="{0}"'.format(basename)
-chroms = chroms.keys()
-
-if config.has_key("chromosomes") and config["chromosomes"]:
-    if type(config["chromosomes"]) == type([]):
-        chroms = config["chromosomes"]
-    else:
-        chroms = [config["chromosomes"]]
+chroms = config.chroms
 
 def init_worker():
     signal.signal(signal.SIGINT, signal.SIG_IGN)
@@ -237,7 +116,7 @@ if threads > 1:
         watcher = pool.apply_async(listener, args=(q, lock) )
         
         # do the main work 
-        partialAnnotate = partial(annotate_chrom, q=q, anno_files=anno_files, data=data, weight=weight, prune=prune, index=index)
+        partialAnnotate = partial(annotate_chrom, q=q, anno_files=config.anno_files, data=config.data, weight=config.weight, prune=config.prune, index=index)
         pool.map(partialAnnotate, chroms) 
         
         # kill the queue!
@@ -251,7 +130,7 @@ if threads > 1:
         pool.join()
 else:
     for chrom in chroms:
-        for genename,best_exons in get_chrom_models(chrom, anno_files, data, weight, prune, index):
+        for genename,best_exons in get_chrom_models(chrom, config.anno_files, config.data, config.weight, config.prune, index):
             print_output(genename,best_exons)
 
 cdna_fh.close()
