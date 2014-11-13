@@ -4,6 +4,7 @@ from sqlalchemy.orm import relationship,sessionmaker,mapper,scoped_session
 from sqlalchemy import create_engine, and_, event
 from sqlalchemy.ext.associationproxy import association_proxy
 from sqlalchemy.inspection import inspect
+from pita.exon import Exon
 
 Base = declarative_base()
 
@@ -50,6 +51,11 @@ class Feature(Base):
         return "{}{}{}".format(
                 self.start, self.strand, self.end
                 )
+    
+    def to_flat_exon(self):
+        e = Exon(self.chrom, self.start, self.end, self.strand)
+        e.seq = self.seq
+        return e
 
 class Evidence(Base):
     __tablename__ = "evidence"

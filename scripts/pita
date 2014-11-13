@@ -45,6 +45,13 @@ p.add_argument("-d",
 
 args = p.parse_args()
 configfile = args.configfile
+
+if not os.path.exists(configfile):
+    print "Missing config file {}".format(configfile)
+    print
+    p.print_help()
+    sys.exit()
+
 threads = args.threads
 index = args.index_dir
 debug_level = args.debug_level.upper()
@@ -182,7 +189,7 @@ if config.has_key("chromosomes") and config["chromosomes"]:
 def init_worker():
     signal.signal(signal.SIGINT, signal.SIG_IGN)
 
-def print_output(alog, genename, exons, lock=None):
+def print_output(genename, exons, lock=None):
     print model_to_bed(exons, genename)
     #alog.log_to_file(genename, exons) 
 
@@ -196,31 +203,24 @@ def print_output(alog, genename, exons, lock=None):
     if lock:
         lock.release()
 
-def listener(q, names, append=False, lock=None):
+def listener(q, lock=None):
     '''listens for messages on the q, writes to file. '''
-
-    alog = AnnotationLog(append)
-    for name in names:
-        alog.add(name)
     
     while 1:
         m = q.get()
         if m == 'kill':
             break
-       
+         
         genename, exons = m
         logger.debug("calling print_output for {0}".format(genename))
-        print_output(alog, genename, exons, lock)
-
-def put_queue(q, data):
-    q.put(data)
+        print_output(genename, exons, lock)
 
 def annotate_chrom(chrom, q, anno_files, data, weight, prune, index):
     logger.info("Chromosome {0} started".format(chrom))
     for genename, best_exons in get_chrom_models(chrom, anno_files, data, weight, prune, index):
-        pass
+        #results.append([genename, best_exons])
         logger.debug("Putting {0} in print queue".format(genename))
-        put_queue(q, [genename, best_exons])
+        q.put([genename, best_exons])
 
     logger.info("Chromosome {0} finished".format(chrom))
 
@@ -228,30 +228,31 @@ if threads > 1:
     logger.info("Starting threaded work")
     manager = mp.Manager()
     lock = manager.Lock()
-    q = manager.Queue()    
-
+    q = manager.Queue()
     pool = mp.Pool(threads, init_worker) 
     
-    try:    
-        partialAnnotate = partial(annotate_chrom, q=q, anno_files=anno_files, data=data, weight=weight, prune=prune, index=index)
+    try:  
+        
         #put listener to work first
-        watcher = pool.apply_async(listener, (q,[x[0] for x in anno_files], False, lock))
+        watcher = pool.apply_async(listener, args=(q, lock) )
+        
+        # do the main work 
+        partialAnnotate = partial(annotate_chrom, q=q, anno_files=anno_files, data=data, weight=weight, prune=prune, index=index)
         pool.map(partialAnnotate, chroms) 
+        
+        # kill the queue!
         q.put('kill')
         pool.close()
         pool.join()
+
     except KeyboardInterrupt:
         logger.exception("Caught KeyboardInterrupt, terminating workers")
         pool.terminate()
         pool.join()
 else:
-    alog = AnnotationLog(append=False)
-    for name in [x[0] for x in anno_files]:
-        alog.add(name)
-    
     for chrom in chroms:
         for genename,best_exons in get_chrom_models(chrom, anno_files, data, weight, prune, index):
-            print_output(alog, genename,best_exons)
+            print_output(genename,best_exons)
 
 cdna_fh.close()
 protein_fh.close()

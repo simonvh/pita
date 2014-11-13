@@ -136,7 +136,8 @@ def get_chrom_models(chrom, anno_files, data, weight, prune=None, index=None):
 #    
         
         logger.info("Done calling transcripts for {0}".format(chrom))
-        return [v for m,v in models.items() if not m in discard]
+        result = [v for m,v in models.items() if not m in discard]
+        return [[name, [e.to_flat_exon() for e in exons]] for name, exons in result]
 
     except:
         logger.exception("Error on {0}".format(chrom))
