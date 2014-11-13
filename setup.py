@@ -37,6 +37,7 @@ setup (name = 'pita',
         data_files=[],
         tests_require=['pytest'],
         install_requires=[
+                        "SQLAlchemy",
                         "gimmemotifs",
                         "pysam < 0.8",
                         "pyyaml",
