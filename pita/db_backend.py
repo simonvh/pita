@@ -77,9 +77,9 @@ class FeatureReadCount(Base):
     read_source = relationship("ReadSource")
     feature = relationship("Feature")
     count = Column(Integer, default=0)
-    span = Column(String(50), default="all")
-    extend_up = Column(Integer, default=0)
-    extend_down = Column(Integer, default=0)
+    span = Column(String(50), default="all", primary_key=True)
+    extend_up = Column(Integer, default=0, primary_key=True)
+    extend_down = Column(Integer, default=0, primary_key=True)
 
 def get_or_create(session, model, **kwargs):
     instance = session.query(model).filter_by(**kwargs).first()

@@ -119,6 +119,10 @@ class PitaConfig:
                 if type("") == type(d["path"]):
                     d["path"] = [d["path"]]
        
+                d.setdefault("feature", "all")
+                if d["feature"] not in ["all", "start", "end", "splice"]:
+                    self.logger.error("Incorrect span: {}".format(span))
+                    sys.exit(1)
 
                 names_and_stats = []
                 fnames = [os.path.join(self.base, x) for x in d["path"]]
@@ -135,5 +139,5 @@ class PitaConfig:
                     #    names_and_stats.append((fname, read_statistics(fname)))
                     #else:
                      #   names_and_stats.append((fname, None))
-                row = [d["name"], fnames, d["feature"], (d["up"], d["down"])]
+                row = [d["name"], fnames, d["feature"], (int(d["up"]), int(d["down"]))]
                 self.data.append(row)

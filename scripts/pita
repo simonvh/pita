@@ -3,6 +3,7 @@ from pita.model import get_chrom_models
 from pita.util import model_to_bed, read_statistics, exons_to_seq, longest_orf
 from pita.log import setup_logging
 from pita.config import PitaConfig
+from pita.annotationdb import AnnotationDb
 import os
 import sys
 import argparse
@@ -67,6 +68,8 @@ chroms = config.chroms
 
 def init_worker():
     signal.signal(signal.SIGINT, signal.SIG_IGN)
+
+#db = AnnotationDb(new=True, index=index)
 
 def print_output(genename, exons, lock=None):
     print model_to_bed(exons, genename)

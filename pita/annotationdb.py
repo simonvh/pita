@@ -170,16 +170,30 @@ class AnnotationDb():
 #        query = query.filter(Feature.end - Feature.start >= l)
 #        return [e for e in query if len(e.evidences) == 1]
     
-    def get_read_statistics(self, fnames, name, span="exon", extend=(0,0), nreads=None):
+    def get_read_statistics(self, chrom, fnames, name, span="all", extend=(0,0), nreads=None):
         from fluff.fluffio import get_binned_stats
         from tempfile import NamedTemporaryFile
 
+        if span not in ["all", "start", "end"]:
+            raise Exception("Incorrect span: {}".format(span))
+        
         tmp = NamedTemporaryFile()
         estore = {}
         self.logger.debug("Writing exons to file")
-        for exon in self.get_exons():
+        for exon in self.get_exons(chrom):
             start = exon.start
             end = exon.end
+            if span == "start":
+                if exon.strand == "+":
+                    end = start
+                elif exon.strand == "-":
+                    start = end
+            if span == "end":
+                if exon.strand == "+":
+                    start = end
+                elif exon.strand == "-":
+                    end = start
+            
             if exon.strand == "-":
                 start -= extend[1]
                 end += extend[0]
@@ -227,7 +241,10 @@ class AnnotationDb():
                 
                 count = get_or_create(self.session, FeatureReadCount,
                             feature_id = exon.id,
-                            read_source_id = read_source.id)
+                            read_source_id = read_source.id,
+                            span = span,
+                            extend_up = extend[0],
+                            extend_down = extend[1])
                 self.session.commit()
                 if not count.count:
                     count.count = c
@@ -237,7 +254,7 @@ class AnnotationDb():
             self.session.commit()
         tmp.close()
 
-    def get_splice_statistics(self, fnames, name):
+    def get_splice_statistics(self, chrom, fnames, name):
         if type("") == type(fnames):
             fnames = [fnames]
 
@@ -247,28 +264,29 @@ class AnnotationDb():
             self.session.commit()
             for line in open(fname):
                 vals = line.strip().split("\t")
-                chrom = vals[0]
-                start, end, c = [int(x) for x in vals[1:4]]
-                strand = vals[5]
-                
-                splice = get_or_create(self.session, Feature,
+                if vals[0] == chrom:
+                    start, end, c = [int(x) for x in vals[1:4]]
+                    strand = vals[5]
+                    
+                    splice = get_or_create(self.session, Feature,
                              chrom = chrom,
                              start = start,
                              end = end,
                              strand = strand,
                              ftype = "splice_junction"
                              ) 
-    
-                count = get_or_create(self.session, FeatureReadCount,
+                    self.session.commit()
+
+                    count = get_or_create(self.session, FeatureReadCount,
                             feature_id = splice.id,
                             read_source_id = read_source.id)
                 
-                if not count.count:
-                    count.count = c
-                else:
-                    count.count += c
+                    if not count.count:
+                        count.count = c
+                    else:
+                        count.count += c
             
-            self.session.commit()    
+                    self.session.commit()    
     
     def get_junction_exons(self, junction):
         

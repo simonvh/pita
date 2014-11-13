@@ -47,10 +47,10 @@ def get_chrom_models(chrom, anno_files, data, weight, prune=None, index=None):
         for name, fname, span, extend in data:
             if span == "splice":
                 logger.info("Reading splice data {0} from {1}".format(name, fname))
-                db.get_splice_statistics(fname, name=name)
+                db.get_splice_statistics(chrom, fname, name)
             else:
                 logger.info("Reading BAM data {0} from {1}".format(name, fname))
-                db.get_read_statistics(fname, name=name, span=span, extend=extend, nreads=None)
+                db.get_read_statistics(chrom, fname, name=name, span=span, extend=extend, nreads=None)
         
         models = {}
         exons = {}
