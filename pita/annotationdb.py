@@ -247,7 +247,6 @@ class AnnotationDb():
             self.session.commit()
             for line in open(fname):
                 vals = line.strip().split("\t")
-                print vals
                 chrom = vals[0]
                 start, end, c = [int(x) for x in vals[1:4]]
                 strand = vals[5]
