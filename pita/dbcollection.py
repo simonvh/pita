@@ -327,31 +327,3 @@ class DbCollection:
                 w = w + idw
         
         return transcripts[numpy.argmax(w)]
-
-def get_updated_exons(model, name):
-    strand = model[0].strand
-    n = 0
-    u5 = 0
-    u3 = 0
-    for e in model:
-        if name in [x.split(":")[0] for x in e.evidence]:
-            break
-        n += 1
-
-    if strand == "-":
-        u3 = n
-    else:
-        u5 = n 
-     
-    n = 0
-    for e in model[::-1]:
-        if name in [x.split(":")[0] for x in e.evidence]:
-            break
-        n += 1
-
-    if strand == "-":
-        u5 = n
-    else:
-        u3 = n
-    
-    return u5,u3
