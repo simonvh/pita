@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-from pita.model import get_chrom_models
+from pita.model import get_chrom_models, load_chrom_data
 from pita.util import model_to_bed, read_statistics, exons_to_seq, longest_orf
 from pita.log import setup_logging
 from pita.config import PitaConfig
@@ -18,18 +18,23 @@ p = argparse.ArgumentParser()
 p.add_argument("-c",
                dest= "configfile",
                default = DEFAULT_CONFIG,
-               help="Configuration file (default: {0})".format(DEFAULT_CONFIG)
+               help="configuration file (default: {0})".format(DEFAULT_CONFIG)
               )
 p.add_argument("-t",
                dest= "threads",
                default = DEFAULT_THREADS,
                type = int,
-               help="Number of threads (default: {0})".format(DEFAULT_THREADS)
+               help="number of threads (default: {0})".format(DEFAULT_THREADS)
               )
 p.add_argument("-i",
                dest= "index_dir",
                default = None,
-               help="Genome index dir"
+               help="genome index dir"
+              )
+p.add_argument("-y",
+               dest= "yaml_file",
+               default = None,
+               help="dump database to yaml file"
               )
 p.add_argument("-d",
                dest= "debug_level",
@@ -100,7 +105,8 @@ def listener(q, lock=None):
 
 def annotate_chrom(chrom, q, anno_files, data, weight, prune, index):
     logger.info("Chromosome {0} started".format(chrom))
-    for genename, best_exons in get_chrom_models(chrom, anno_files, data, weight, prune, index):
+    load_chrom_data(chrom, anno_files, data, index)
+    for genename, best_exons in get_chrom_models(chrom, weight, prune):
         #results.append([genename, best_exons])
         logger.debug("Putting {0} in print queue".format(genename))
         q.put([genename, best_exons])
@@ -134,8 +140,15 @@ if threads > 1:
         pool.join()
 else:
     for chrom in chroms:
-        for genename,best_exons in get_chrom_models(chrom, config.anno_files, config.data, config.weight, config.prune, index):
-            print_output(genename,best_exons)
+        load_chrom_data(chrom, config.anno_files, config.data, index)
+        for genename, best_exons in get_chrom_models(chrom, config.weight, config.prune):
+            print_output(genename, best_exons)
 
 cdna_fh.close()
 protein_fh.close()
+
+# dump database
+if args.yaml_file:
+    with AnnotationDb(new=False) as db:
+        with open(args.yaml_file) as f:
+            f.write(db.dump_yaml())

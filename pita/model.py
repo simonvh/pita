@@ -9,8 +9,7 @@ import sys
 from tempfile import NamedTemporaryFile
 from pita.config import SEP
 
-def get_chrom_models(chrom, anno_files, data, weight, prune=None, index=None):
-    
+def load_chrom_data(chrom, anno_files, data, index=None):
     logger = logging.getLogger("pita")
     
     try:
@@ -33,15 +32,6 @@ def get_chrom_models(chrom, anno_files, data, weight, prune=None, index=None):
             tabixfile.close()
             del tabixfile
         
-        # Prune spurious exon linkages
-        #for p in mc.prune():
-        #    logger.debug("Pruning {0}:{1}-{2}".format(*p))
-
-        mc = DbCollection(db, chrom)
-        # Remove long exons with only one evidence source
-        mc.filter_long(l=2000)
-        # Remove short introns
-        #mc.filter_short_introns()
         logger.info("Loading data for {0}".format(chrom))
 
         for name, fname, span, extend in data:
@@ -51,7 +41,26 @@ def get_chrom_models(chrom, anno_files, data, weight, prune=None, index=None):
             else:
                 logger.info("Reading BAM data {0} from {1}".format(name, fname))
                 db.get_read_statistics(chrom, fname, name=name, span=span, extend=extend, nreads=None)
-        
+ 
+    except:
+        logger.exception("Error on {0}".format(chrom))
+
+def get_chrom_models(chrom, weight, prune=None):
+    
+    logger = logging.getLogger("pita")
+       
+    try:
+        db = AnnotationDb(new=False, index=index)
+        mc = DbCollection(db, chrom)
+        # Remove long exons with only one evidence source
+        mc.filter_long(l=2000)
+        # Remove short introns
+        #mc.filter_short_introns()
+        # Prune spurious exon linkages
+        #for p in mc.prune():
+        #    logger.debug("Pruning {0}:{1}-{2}".format(*p))
+
+       
         models = {}
         exons = {}
         logger.info("Calling transcripts for {0}".format(chrom))
