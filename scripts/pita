@@ -69,7 +69,8 @@ chroms = config.chroms
 def init_worker():
     signal.signal(signal.SIGINT, signal.SIG_IGN)
 
-#db = AnnotationDb(new=True, index=index)
+db = AnnotationDb(new=True, index=index)
+del db
 
 def print_output(genename, exons, lock=None):
     print model_to_bed(exons, genename)

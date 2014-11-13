@@ -17,9 +17,9 @@ def get_chrom_models(chrom, anno_files, data, weight, prune=None, index=None):
         # Read annotation files
         db = AnnotationDb(new=False, index=index)
         logger.info("Reading annotation for {0}".format(chrom))
-        for name, fname, ftype, min_exons in anno_files:
+        for name, fname, tabix_file, ftype, min_exons in anno_files:
             logger.info("Reading annotation from {0}".format(fname))
-            tabixfile = pysam.Tabixfile(fname)
+            tabixfile = pysam.Tabixfile(tabix_file)
             #tabixfile = fname
             if chrom in tabixfile.contigs:
                 fobj = TabixIteratorAsFile(tabixfile.fetch(chrom))

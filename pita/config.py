@@ -102,7 +102,7 @@ class PitaConfig:
                 
                 #fobj = pysam.Tabixfile(tabix_file)
                 # Add file info
-                self.anno_files.append([d["name"], tabix_file, t, min_exons])
+                self.anno_files.append([d["name"], fname, tabix_file, t, min_exons])
                 # Save chromosome names
                 for chrom in pysam.Tabixfile(tabix_file).contigs:
                     self.chroms[chrom] = 1

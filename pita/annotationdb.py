@@ -228,10 +228,10 @@ class AnnotationDb():
             else:
                 rmrepeats = False
 
-            self.logger.info("Getting overlap from {0}".format(fname))
+            self.logger.debug("Getting overlap from {0}".format(fname))
             result = get_binned_stats(tmp.name, fname, 1, rpkm=False, rmdup=False, rmrepeats=False)
 
-            self.logger.info("Reading results, save to exon stats")
+            self.logger.debug("Reading results, save to exon stats")
 
             for row in result:
                 vals = row.strip().split("\t")
