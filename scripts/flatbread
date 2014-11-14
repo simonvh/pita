@@ -84,8 +84,10 @@ for f in config['data']:
                 loc = "{0}:{1}-{2}".format(vals[0], vals[1], vals[2])
                 cmd = "samtools view {0} {1} >> {2}".format(p, loc, tmp.name)
                 sp.call(cmd, shell=True) 
-            cmd = "samtools view -bS {0} > {1} && samtools index {1}"
+            cmd = "samtools view -bS {0} > {1} && mv {1} {0}"
             sp.call(cmd.format(tmp.name, out), shell=True)
+            cmd = "samtools sort {0} {1} && samtools index {2}" 
+            sp.call(cmd.format(tmp.name, out.replace(".bam", ""), out), shell=True)
             tmp.close()
         else:
             a = pybedtools.BedTool(p)
