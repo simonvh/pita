@@ -10,18 +10,34 @@ from pita.util import read_statistics
 import yaml
 
 class AnnotationDb():
-    def __init__(self, conn='mysql://pita:@localhost/pita', new=False, index=None):
+    def __init__(self, session=None, conn='mysql://pita:@localhost/pita', new=False, index=None):
         self.logger = logging.getLogger("pita")
-        self.Session = db_session(conn, new)
-        self.session = self.Session()
+        if session:
+            self.session = session
+        else:
+            if conn.startswith("sqlite"):
+                self.Session = db_session(conn, new)
+                self.session = self.Session()
+            else:
+                self._init_session(conn, new) 
         
         if index:
             self.index = GenomeIndex(index)
         else:
             self.index = None
     
-    def __destroy__(self):
-        self.session.close()
+    #def __destroy__(self):
+    #    self.session.close()
+
+    def _init_session(self, conn, new=False):
+        self.engine = create_engine(conn)
+        self.engine.raw_connection().connection.text_factory = str
+        if new:
+            Base.metadata.drop_all(self.engine)
+            Base.metadata.create_all(self.engine)
+        Base.metadata.bind =self. engine
+        Session = scoped_session(sessionmaker(bind=self.engine))
+        self.session = Session()
 
     def __enter__(self):
         return self
@@ -55,7 +71,7 @@ class AnnotationDb():
     
     
         t = ["chrom","start","end","strand","ftype","seq"]
-        result = db_session.engine.execute(
+        result = self.engine.execute(
             Feature.__table__.insert(),
             [dict(zip(t, row[1:])) for row in data['feature']]
             )
@@ -69,13 +85,13 @@ class AnnotationDb():
             ]
         t = ["read_source_id", "feature_id", "count", "span", "extend_up", "extend_down"]
     
-        result = db_session.engine.execute(
+        result = self.engine.execute(
             FeatureReadCount.__table__.insert(),
             [dict(zip(t, row)) for row in data['read_count']]
             )
     
         t = ["name","source"]
-        result = db_session.engine.execute(
+        result = self.engine.execute(
             Evidence.__table__.insert(),
             [dict(zip(t, row[1:])) for row in data['evidence']]
             )
@@ -90,7 +106,7 @@ class AnnotationDb():
             ]
     
         t = ["feature_id", "evidence_id"]
-        result = db_session.engine.execute(
+        result = self.engine.execute(
             FeatureEvidence.__table__.insert(),
             [dict(zip(t, row)) for row in data['feature_evidence']]
             )

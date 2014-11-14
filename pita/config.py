@@ -27,6 +27,10 @@ class PitaConfig:
         self.config = yaml.load(f)
         f.close()
 
+        self.db_conn = "sqlite:///pita_database.db"
+        if self.config.has_key("database"):
+            self.db_conn = self.config["database"]
+        
         # Data directory
         self.base = "."
         if self.config.has_key("data_path"):
@@ -121,7 +125,7 @@ class PitaConfig:
        
                 d.setdefault("feature", "all")
                 if d["feature"] not in ["all", "start", "end", "splice"]:
-                    self.logger.error("Incorrect span: {}".format(span))
+                    self.logger.error("Incorrect span: {}".format(d["feature"]))
                     sys.exit(1)
 
                 names_and_stats = []
