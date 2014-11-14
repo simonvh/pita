@@ -111,7 +111,6 @@ def annotate_chrom(chrom, conn, q, anno_files, data, weight, prune, index):
     logger.info("Chromosome {0} finished".format(chrom))
 
 # Initialize database
-print config.db_conn
 db = AnnotationDb(new=True, conn=config.db_conn)
 
 if threads > 1:
