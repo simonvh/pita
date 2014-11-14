@@ -6,7 +6,7 @@ from sqlalchemy import and_
 from sqlalchemy.orm import joinedload
 from pita import db_session
 from pita.db_backend import * 
-from pita.util import read_statistics
+from pita.util import read_statistics, get_splice_score
 import yaml
 
 class AnnotationDb():
@@ -18,6 +18,7 @@ class AnnotationDb():
             if conn.startswith("sqlite"):
                 self.Session = db_session(conn, new)
                 self.session = self.Session()
+                self.engine = db_session.engine
             else:
                 self._init_session(conn, new) 
         
@@ -35,7 +36,7 @@ class AnnotationDb():
         if new:
             Base.metadata.drop_all(self.engine)
             Base.metadata.create_all(self.engine)
-        Base.metadata.bind =self. engine
+        Base.metadata.bind =self.engine
         Session = scoped_session(sessionmaker(bind=self.engine))
         self.session = Session()
 
@@ -131,21 +132,27 @@ class AnnotationDb():
         chrom = exons[0][0]
         strand = exons[0][-1]
 
+        seqs = []
         for exon in exons:
             seq = ""
             if self.index:
-                seq = self.index.get_sequence(chrom, exon[1], exon[2], strand)
+                seq = ""
+                if exon[1] - 20 > 0:
+                    seq = self.index.get_sequence(chrom, exon[1] - 20, exon[2] + 20, strand)
+                seqs.append(seq)
             exon = get_or_create(self.session, Feature,
                              chrom = chrom,
                              start = exon[1],
                              end = exon[2],
                              strand = strand,
                              ftype = "exon",
-                             seq = seq
+                             seq = seq[20:-20]
                              ) 
             exon.evidences.append(Evidence(name=name, source=source))
 
-        for start,end in [(e1[2], e2[1]) for e1, e2 in zip(exons[0:-1], exons[1:])]:
+        splice_donors = []
+        splice_acceptors = []
+        for i,(start,end) in enumerate([(e1[2], e2[1]) for e1, e2 in zip(exons[0:-1], exons[1:])]):
             sj = get_or_create(self.session, Feature,
                              chrom = chrom,
                              start = start,
@@ -154,7 +161,29 @@ class AnnotationDb():
                              ftype = "splice_junction"
                              ) 
             sj.evidences.append(Evidence(name=name, source=source))
-        self.session.commit()
+            
+            if strand == "+":
+                if len(seqs) > (i + 1) and len(seqs[i]) > 46:
+                    splice_donors.append(["{}_{}".format(name, i + 1), seqs[i][-23:-14]])
+                if len(seqs) > (i + 2) and len(seqs[i + 1]) > 46:
+                    f = ["{}_{}".format(name, i + 1), seqs[i + 1][:23]]
+                    splice_acceptors.append(f)
+            else:
+                if len(seqs) > (i + 2) and len(seqs[i + 1]) > 46:
+                    f = ["{}_{}".format(name, i + 1), seqs[i + 1][-23:-14]]
+                    splice_donors.append(f)
+                     
+                if len(seqs) > (i + 1) and len(seqs[i]) > 46:
+                    f = ["{}_{}".format(name, i + 1), seqs[i][:23]]
+                    splice_acceptors.append(f)
+        
+        donor_score = get_splice_score(splice_donors, 5)
+        acceptor_score = get_splice_score(splice_acceptors, 3)
+        if donor_score + acceptor_score < 0:
+            self.logger.error("Skipping {}, splicing not OK!".format(name))
+            self.session.rollback()
+        else:
+            self.session.commit()
     
     def get_features(self, ftype=None, chrom=None):
         self.session.query(Feature).options(
@@ -370,4 +399,3 @@ class AnnotationDb():
             ))
 
         return evidence[0]
-
