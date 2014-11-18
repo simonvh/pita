@@ -2,7 +2,7 @@ import sys
 import atexit
 from pita.db_backend import *
 
-def db_session(conn, new=True):
+def db_session(conn, new=False):
     if not hasattr(db_session, 'session') or not db_session.session:
         engine = create_engine(conn)
         engine.raw_connection().connection.text_factory = str
