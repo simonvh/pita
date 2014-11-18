@@ -42,7 +42,8 @@ class DbCollection:
         self.logger = logging.getLogger("pita")
         
         self.db = db
-                
+        self.chrom = chrom
+
         # All transcript models will be stored as a directed (acyclic) graph
         self.graph = nx.DiGraph()
 
@@ -176,13 +177,30 @@ class DbCollection:
         
         return pruned
 
-    def filter_long(self, l=1000):
-        for exon in self.db.get_long_exons(l):
+    def is_weak_splice(self, splice):
+        for e1,e2 in self.db.get_junction_exons(splice):
+            for p in self.graph.predecessors(e1):
+                for s in self.graph.successors(e2):
+                     if len(e1.evidences) < len(p.evidences) and len(e2.evidences) < len(s.evidences):
+                         return True
+
+    def prune_splice_junctions(self):
+        for splice in self.db.get_splice_junctions(self.chrom, max_reads=5):
+            if self.is_weak_splice(splice):
+                for e1,e2 in self.db.get_junction_exons(splice):
+                    self.logger.info("Removing splice {}".format(splice))
+                    self.graph.remove_edge(e1, e2)
+    
+    def filter_long(self, l=1000, evidence=2):
+        #print "HOIE"
+        for exon in self.db.get_long_exons(self.chrom, l):
             out_edges = len(self.graph.out_edges([exon]))
             in_edges = len(self.graph.in_edges([exon]))
-            self.logger.debug("In {0} Out {1}".format(in_edges,out_edges))
+            self.logger.debug("Filter long: {}, in {} out {}".format(exon, in_edges,out_edges))
 
+            #print exon, in_edges, out_edges
             if in_edges >= 0 and out_edges >= 1 and exon.strand == "+" or in_edges >= 1 and out_edges >= 0 and exon.strand == "-":
+                print "Removing", exon
                 self.logger.info("Removing long exon {0}".format(exon))
                 self.graph.remove_node(exon)
     

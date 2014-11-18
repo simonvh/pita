@@ -55,7 +55,8 @@ def get_chrom_models(conn, chrom, weight, prune=None):
         db = AnnotationDb(conn=conn)
         mc = DbCollection(db, chrom)
         # Remove long exons with only one evidence source
-        mc.filter_long(l=2000)
+        mc.filter_long(l=2000, evidence=2)
+        mc.prune_splice_junctions()
         # Remove short introns
         #mc.filter_short_introns()
         # Prune spurious exon linkages

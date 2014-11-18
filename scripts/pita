@@ -75,11 +75,12 @@ def init_worker():
     signal.signal(signal.SIGINT, signal.SIG_IGN)
 
 def print_output(genename, exons, lock=None):
-    print model_to_bed(exons, genename)
     #alog.log_to_file(genename, exons) 
 
     if lock:
         lock.acquire()
+    sys.stdout.write("{}\n".format(model_to_bed(exons, genename)))
+    sys.stdout.flush()
     # Print sequences
     cdna_fh.write(">{0}\n{1}\n".format(genename, exons_to_seq(exons)))
     protein_fh.write(">{0}\n{1}\n".format(genename, longest_orf(exons, do_prot=True)))

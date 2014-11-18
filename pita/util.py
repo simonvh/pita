@@ -6,6 +6,9 @@ import re
 import sys
 import subprocess as sp
 from tempfile import NamedTemporaryFile
+import logging
+
+logger = logging.getLogger('pita')
 
 def read_statistics(fname, rmrepeat=False, rmdup=False, mapped=False):
     """ Count number of reads in BAM file.
@@ -46,9 +49,11 @@ def exons_to_seq(exons):
         exons = exons[::-1]
 
     for e in exons:
-        if not e.seq:
-            raise Exception, "exon has no sequence"
-        seq = "".join((seq, e.seq))
+        if e.seq:
+            seq = "".join((seq, e.seq))
+        else:
+            logger.error("exon {} has no sequence".format(e))
+
     return seq
 
 def longest_orf(seq, do_prot=False):

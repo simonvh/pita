@@ -185,7 +185,7 @@ class AnnotationDb():
         donor_score = get_splice_score(splice_donors, 5)
         acceptor_score = get_splice_score(splice_acceptors, 3)
         if donor_score + acceptor_score < 0:
-            self.logger.error("Skipping {}, splicing not OK!".format(name))
+            self.logger.warning("Skipping {}, splicing not OK!".format(name))
             self.session.rollback()
         else:
             self.session.commit()
@@ -205,7 +205,7 @@ class AnnotationDb():
     def get_exons(self, chrom=None):
         return self.get_features(ftype="exon", chrom=chrom)
     
-    def get_splice_junctions(self, chrom=None, ev_count=None, read_count=None):
+    def get_splice_junctions(self, chrom=None, ev_count=None, read_count=None, max_reads=None):
                 
         features = []
         if ev_count and read_count:
@@ -219,7 +219,7 @@ class AnnotationDb():
 
             for splice in fs:
                 if len(splice.evidences) >= ev_count:
-                    feature.append(splice)
+                    features.append(splice)
 
             # All splcies with more than x reads
             fs = self.session.query(Feature).\
@@ -230,15 +230,30 @@ class AnnotationDb():
                     having(func.sum(FeatureReadCount.count) >= read_count)
             features += [f for f in fs]
         
-        else:
+        elif max_reads:
+            fs = self.session.query(Feature).\
+                    filter(Feature.ftype == "splice_junction").\
+                    filter(Feature.chrom == chrom).\
+                    outerjoin(FeatureReadCount).\
+                    group_by(Feature).\
+                    having(func.sum(FeatureReadCount.count) == None)
 
+            features += [f for f in fs if len(f.evidences) > 0]
+            fs = self.session.query(Feature).\
+                    filter(Feature.ftype == "splice_junction").\
+                    filter(Feature.chrom == chrom).\
+                    outerjoin(FeatureReadCount).\
+                    group_by(Feature).\
+                    having(func.sum(FeatureReadCount.count) < 5)
+            features += [f for f in fs if len(f.evidences) > 0]  
+        else:
             features = self.get_features(ftype="splice_junction", chrom=chrom)
-        
         return features 
 
-    def get_long_exons(self, l):
+    def get_long_exons(self, chrom, l):
         query = self.session.query(Feature)
         query = query.filter(Feature.ftype == 'exon')
+        query = query.filter(Feature.chrom == chrom)
         query = query.filter(Feature.end - Feature.start >= l)
         return [e for e in query if len(e.evidences) == 1]
 
@@ -372,13 +387,15 @@ class AnnotationDb():
         left = self.session.query(Feature).filter(and_(
             Feature.chrom == junction.chrom,
             Feature.strand == junction.strand,
-            Feature.end == junction.start
+            Feature.end == junction.start,
+            Feature.ftype == "exon"
             ))
         
         right = self.session.query(Feature).filter(and_(
             Feature.chrom == junction.chrom,
             Feature.strand == junction.strand,
-            Feature.start == junction.end
+            Feature.start == junction.end,
+            Feature.ftype == "exon"
             ))
 
         exon_pairs = []
