@@ -2,7 +2,7 @@ import os
 import sys
 import logging
 from gimmemotifs.genome_index import GenomeIndex
-from sqlalchemy import and_
+from sqlalchemy import and_,func
 from sqlalchemy.orm import joinedload
 from pita import db_session
 from pita.db_backend import * 
@@ -135,18 +135,23 @@ class AnnotationDb():
         seqs = []
         for exon in exons:
             seq = ""
+            real_seq = ""
             if self.index:
                 seq = ""
                 if exon[1] - 20 > 0:
                     seq = self.index.get_sequence(chrom, exon[1] - 20, exon[2] + 20, strand)
+                    real_seq = seq[20:-20]
+                else:
+                    real_seq = self.index.get_sequence(chrom, exon[1], exon[2], strand)
                 seqs.append(seq)
+            
             exon = get_or_create(self.session, Feature,
                              chrom = chrom,
                              start = exon[1],
                              end = exon[2],
                              strand = strand,
                              ftype = "exon",
-                             seq = seq[20:-20]
+                             seq = real_seq
                              ) 
             exon.evidences.append(Evidence(name=name, source=source))
 
@@ -200,8 +205,36 @@ class AnnotationDb():
     def get_exons(self, chrom=None):
         return self.get_features(ftype="exon", chrom=chrom)
     
-    def get_splice_junctions(self, chrom=None):
-        return self.get_features(ftype="splice_junction", chrom=chrom)
+    def get_splice_junctions(self, chrom=None, ev_count=None, read_count=None):
+                
+        features = []
+        if ev_count and read_count:
+            # All splices with no read, but more than one evidence source
+            fs = self.session.query(Feature).\
+                    filter(Feature.ftype == "splice_junction").\
+                    filter(Feature.chrom == chrom).\
+                    outerjoin(FeatureReadCount).\
+                    group_by(Feature).\
+                    having(func.sum(FeatureReadCount.count) == None)
+
+            for splice in fs:
+                if len(splice.evidences) >= ev_count:
+                    feature.append(splice)
+
+            # All splcies with more than x reads
+            fs = self.session.query(Feature).\
+                    filter(Feature.ftype == "splice_junction").\
+                    filter(Feature.chrom == chrom).\
+                    outerjoin(FeatureReadCount).\
+                    group_by(Feature).\
+                    having(func.sum(FeatureReadCount.count) >= read_count)
+            features += [f for f in fs]
+        
+        else:
+
+            features = self.get_features(ftype="splice_junction", chrom=chrom)
+        
+        return features 
 
     def get_long_exons(self, l):
         query = self.session.query(Feature)
@@ -222,9 +255,9 @@ class AnnotationDb():
         if span not in ["all", "start", "end"]:
             raise Exception("Incorrect span: {}".format(span))
         
-        tmp = NamedTemporaryFile()
+        tmp = NamedTemporaryFile(delete=False)
         estore = {}
-        self.logger.debug("Writing exons to file")
+        self.logger.debug("Writing exons to file {}".format(tmp.name))
         for exon in self.get_exons(chrom):
             start = exon.start
             end = exon.end
@@ -248,15 +281,20 @@ class AnnotationDb():
             if start < 0:
                 start = 0
 
-            estore["%s:%s-%s" % (exon.chrom, start, end)] = exon
-            tmp.write("%s\t%s\t%s\t%s\t%s\t%s\n" % (
-                exon.chrom,
-                start,
-                end,
-                str(exon),
-                0,
-                exon.strand
-            ))
+            estr = "{}:{}-{}".format(exon.chrom, start, end)
+
+            if estore.has_key(estr):
+                estore[estr].append(exon)
+            else:
+                estore[estr] = [exon]
+                tmp.write("{}\t{}\t{}\t{}\t{}\t{}\n".format(
+                    exon.chrom,
+                    start,
+                    end,
+                    str(exon),
+                    0,
+                    exon.strand
+                ))
         tmp.flush()
 
         if type("") == type(fnames):
@@ -283,8 +321,8 @@ class AnnotationDb():
                 vals = row.strip().split("\t")
                 e = "%s:%s-%s" % (vals[0], vals[1], vals[2])
                 c = float(vals[3])
-                exon = estore[e]
-                insert_vals.append[read_source.id, exon.id, c, span, extend[0], extend[1]]
+                for exon in estore[e]:
+                    insert_vals.append([read_source.id, exon.id, c, span, extend[0], extend[1]])
             
             t =  ["read_source_id", "feature_id", "count", "span", "extend_up", "extend_down"]
             result = self.engine.execute(
@@ -292,7 +330,7 @@ class AnnotationDb():
                     [dict(zip(t,row)) for row in insert_vals]
                     )
                 
-       tmp.close()
+        tmp.close()
 
     def get_splice_statistics(self, chrom, fnames, name):
         if type("") == type(fnames):
@@ -300,6 +338,7 @@ class AnnotationDb():
 
         nrsplice = {}
         for fname in fnames:
+            self.logger.debug("Getting splicing data from {0}".format(fname))
             read_source = get_or_create(self.session, ReadSource, name=name, source=fname)
             self.session.commit()
             for line in open(fname):
@@ -394,3 +433,5 @@ class AnnotationDb():
             ))
 
         return evidence[0]
+
+
