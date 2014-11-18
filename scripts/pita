@@ -118,7 +118,7 @@ if threads > 1:
     manager = mp.Manager()
     lock = manager.Lock()
     q = manager.Queue()
-    pool = mp.Pool(threads, init_worker) 
+    pool = mp.Pool(threads, init_worker, maxtasksperchild=1) 
     
     try:  
         
