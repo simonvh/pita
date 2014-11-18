@@ -90,7 +90,7 @@ def empty_db():
 #scaffold_1  18250000    18300000    300
 
 def test_read_statistics(bam_file, db):
-    db.get_read_statistics(bam_file, "test")
+    db.get_read_statistics("scaffold_1", bam_file, "test")
     exons = db.get_exons()
     counts = [e.read_counts[0].count for e in exons]
     assert [1,64,300] == sorted(counts)
@@ -101,15 +101,15 @@ def splice_file():
     return "tests/data/splice_data.bed"
 
 def test_splice_statistics(db, splice_file):
-    db.get_splice_statistics(splice_file, "test")
+    db.get_splice_statistics("scaffold_1", splice_file, "test")
     splices = db.get_splice_junctions()
     counts = [s.read_counts[0].count for s in splices]
     assert 2 == len(splices)
     assert [4,20] == counts
 
 def test_get_weight(db, bam_file, splice_file):
-    db.get_read_statistics(bam_file, "H3K4me3")
-    db.get_splice_statistics(splice_file, "RNAseq")
+    db.get_read_statistics("scaffold_1", bam_file, "H3K4me3")
+    db.get_splice_statistics("scaffold_1", splice_file, "RNAseq")
     from pita.dbcollection import DbCollection
     c = DbCollection(db)
 

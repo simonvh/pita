@@ -74,9 +74,6 @@ chroms = config.chroms
 def init_worker():
     signal.signal(signal.SIGINT, signal.SIG_IGN)
 
-db = AnnotationDb(new=True, index=index)
-del db
-
 def print_output(genename, exons, lock=None):
     print model_to_bed(exons, genename)
     #alog.log_to_file(genename, exons) 
@@ -103,15 +100,18 @@ def listener(q, lock=None):
         logger.debug("calling print_output for {0}".format(genename))
         print_output(genename, exons, lock)
 
-def annotate_chrom(chrom, q, anno_files, data, weight, prune, index):
+def annotate_chrom(chrom, conn, q, anno_files, data, weight, prune, index):
     logger.info("Chromosome {0} started".format(chrom))
-    load_chrom_data(chrom, anno_files, data, index)
-    for genename, best_exons in get_chrom_models(chrom, weight, prune):
+    load_chrom_data(conn, chrom, anno_files, data, index)
+    for genename, best_exons in get_chrom_models(conn, chrom, weight, prune):
         #results.append([genename, best_exons])
         logger.debug("Putting {0} in print queue".format(genename))
         q.put([genename, best_exons])
 
     logger.info("Chromosome {0} finished".format(chrom))
+
+# Initialize database
+db = AnnotationDb(new=True, conn=config.db_conn)
 
 if threads > 1:
     logger.info("Starting threaded work")
@@ -126,7 +126,7 @@ if threads > 1:
         watcher = pool.apply_async(listener, args=(q, lock) )
         
         # do the main work 
-        partialAnnotate = partial(annotate_chrom, q=q, anno_files=config.anno_files, data=config.data, weight=config.weight, prune=config.prune, index=index)
+        partialAnnotate = partial(annotate_chrom, conn=config.db_conn, q=q, anno_files=config.anno_files, data=config.data, weight=config.weight, prune=config.prune, index=index)
         pool.map(partialAnnotate, chroms) 
         
         # kill the queue!
@@ -140,8 +140,8 @@ if threads > 1:
         pool.join()
 else:
     for chrom in chroms:
-        load_chrom_data(chrom, config.anno_files, config.data, index)
-        for genename, best_exons in get_chrom_models(chrom, config.weight, config.prune):
+        load_chrom_data(config.db_conn, chrom, config.anno_files, config.data, index)
+        for genename, best_exons in get_chrom_models(config.db_conn, chrom, config.weight, config.prune):
             print_output(genename, best_exons)
 
 cdna_fh.close()
@@ -150,5 +150,5 @@ protein_fh.close()
 # dump database
 if args.yaml_file:
     with AnnotationDb(new=False) as db:
-        with open(args.yaml_file) as f:
+        with open(args.yaml_file, "w") as f:
             f.write(db.dump_yaml())
