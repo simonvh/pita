@@ -233,26 +233,21 @@ class AnnotationDb():
 
             self.logger.debug("Reading results, save to exon stats")
 
+            insert_vals = []
             for row in result:
                 vals = row.strip().split("\t")
                 e = "%s:%s-%s" % (vals[0], vals[1], vals[2])
                 c = float(vals[3])
                 exon = estore[e]
+                insert_vals.append[read_source.id, exon.id, c, span, extend[0], extend[1]]
+            
+            t =  ["read_source_id", "feature_id", "count", "span", "extend_up", "extend_down"]
+            result = self.engine.execute(
+                    FeatureReadCount.__table__.insert(),
+                    [dict(zip(t,row)) for row in insert_vals]
+                    )
                 
-                count = get_or_create(self.session, FeatureReadCount,
-                            feature_id = exon.id,
-                            read_source_id = read_source.id,
-                            span = span,
-                            extend_up = extend[0],
-                            extend_down = extend[1])
-                self.session.commit()
-                if not count.count:
-                    count.count = c
-                else:
-                    count.count += c
-
-            self.session.commit()
-        tmp.close()
+       tmp.close()
 
     def get_splice_statistics(self, chrom, fnames, name):
         if type("") == type(fnames):
