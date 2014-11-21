@@ -253,12 +253,32 @@ class AnnotationDb():
                     filter(Feature.chrom == chrom).\
                     outerjoin(FeatureReadCount).\
                     group_by(Feature).\
-                    having(func.sum(FeatureReadCount.count) < 5)
+                    having(func.sum(FeatureReadCount.count) < max_reads)
             features += [f for f in fs if len(f.evidences) > 0]  
         else:
             features = self.get_features(ftype="splice_junction", chrom=chrom)
         return features 
 
+    def get_longest_3prime_exon(self, chrom, start5, strand):
+        if strand == "+":
+        
+            q = self.session.query(Feature).\
+                filter(Feature.ftype == "exon").\
+                filter(Feature.chrom == chrom).\
+                filter(Feature.strand == strand).\
+                filter(Feature.start == start5).\
+                order_by(Feature.end)
+            return q.all()[-1]
+        else:
+            q = self.session.query(Feature).\
+                filter(Feature.ftype == "exon").\
+                filter(Feature.chrom == chrom).\
+                filter(Feature.strand == strand).\
+                filter(Feature.end == start5).\
+                order_by(Feature.end)
+            return q.all()[0]
+
+    
     def get_long_exons(self, chrom, l, evidence):
         query = self.session.query(Feature)
         query = query.filter(Feature.ftype == 'exon')

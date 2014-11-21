@@ -139,6 +139,12 @@ class DbCollection:
             variants = [m for m in self.all_simple_paths(model[0], model[-1])]
             best_variant = self.max_weight(variants, weight)
       
+        e = best_variant[-1]
+        if e.strand == "+":
+            best_variant[-1] = self.db.get_longest_3prime_exon(e.chrom, e.start, e.strand)
+        else:
+            e = best_variant[0]
+            best_variant[0] = self.db.get_longest_3prime_exon(e.chrom, e.end, e.strand)
         return best_variant
 
     def prune(self):
@@ -208,10 +214,12 @@ class DbCollection:
                 counts[(s[0].end, s[1].start)] = self.db.get_splice_count(s[0], s[1])
 
         bla = [v for k,v in counts.items() if k not in my]
-        return counts[my[0]] < (np.mean(bla) - np.std(bla))
+        self.logger.debug("{} {} {}".format(counts[my[0]], np.mean(bla),  np.std(bla)))
+        return counts[my[0]] < 0.1 * np.mean(bla)# - np.std(bla))
 
-    def prune_splice_junctions(self, max_reads=5, evidence=2):
+    def prune_splice_junctions(self, max_reads=10, evidence=2):
         for splice in self.db.get_splice_junctions(self.chrom, max_reads=max_reads):
+            self.logger.debug("Splice {}, evidence {}".format(splice, len(splice.evidences)))
             if len(splice.evidences) <= evidence:
                 self.logger.debug("Checking splice {}".format(splice))
                 if self.is_weak_splice(splice, evidence):

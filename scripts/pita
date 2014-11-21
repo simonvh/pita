@@ -112,7 +112,8 @@ def annotate_chrom(chrom, conn, q, anno_files, data, weight, prune, index, reann
     new = False
     if conn.startswith("sqlite"):
         conn += ".{}".format(chrom)
-        new = True
+        if not reannotate:
+            new = True
     logger.info("Chromosome {0} started".format(chrom))
     if not reannotate:
         load_chrom_data(conn, new, chrom, anno_files, data, index)

@@ -56,7 +56,7 @@ def get_chrom_models(conn, chrom, weight, prune=None):
         mc = DbCollection(db, chrom)
         # Remove long exons with only one evidence source
         mc.filter_long(l=2000, evidence=2)
-        mc.prune_splice_junctions(evidence=3)
+        mc.prune_splice_junctions(evidence=3, max_reads=10)
         # Remove short introns
         #mc.filter_short_introns()
         # Prune spurious exon linkages
@@ -73,6 +73,7 @@ def get_chrom_models(conn, chrom, weight, prune=None):
                 #logger.debug("best model")
                 best_model = mc.max_weight(cluster, weight)
                 logger.debug("{}: got best model".format(chrom))
+                best_model = mc.get_best_variant(best_model, weight) 
                 logger.debug("{}: got best variant".format(chrom))
                 genename = "{0}:{1}-{2}_".format(
                                             best_model[0].chrom,
