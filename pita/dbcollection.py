@@ -2,7 +2,7 @@ from pita.exon import *
 from pita.util import read_statistics
 from pita.util import longest_orf,exons_to_seq,model_to_bed
 from pita.config import SEP
-import numpy
+import numpy as np
 import sys
 import logging
 import pickle
@@ -36,6 +36,17 @@ def connected_models(graph):
                     paths.append(path[::-1])
         yield paths
 
+def recursive_neighbors(graph, node_list):
+    result = []
+    for node in node_list:
+        result += graph.neighbors(node)
+    new_list = list(set(node_list + result))
+    for node in result:
+        if not node in node_list:
+            return recursive_neighbors(graph, new_list)
+    return new_list
+
+
 class DbCollection:
     def __init__(self, db, chrom=None):
         # dict with chrom as key
@@ -53,9 +64,11 @@ class DbCollection:
         # Store extension used in BAM statistics
         self.extend = {}
 
+        self.logger.debug("Loading exons in graph")
         for exon in self.db.get_exons(chrom):
             self.add_feature(exon)
         
+        self.logger.debug("Loading introns in graph")
         for junction in self.db.get_splice_junctions(chrom):
             self.add_feature(junction)
 
@@ -177,30 +190,45 @@ class DbCollection:
         
         return pruned
 
-    def is_weak_splice(self, splice):
+    def is_weak_splice(self, splice, evidence=1):
+        exons = []
+        my = []
         for e1,e2 in self.db.get_junction_exons(splice):
-            for p in self.graph.predecessors(e1):
-                for s in self.graph.successors(e2):
-                     if len(e1.evidences) < len(p.evidences) and len(e2.evidences) < len(s.evidences):
-                         return True
+            my.append((e1.end, e2.start))        
+            for e in [e1, e2]:
+                if not e in exons:
+                    exons.append(e) 
+        
+        splices = self.graph.edges(recursive_neighbors(self.graph, exons))
+        if len(splices) == 1:
+            return False
+        counts = {}
+        for s in splices:
+            if not counts.has_key((s[0].end, s[1].start)):
+                counts[(s[0].end, s[1].start)] = self.db.get_splice_count(s[0], s[1])
 
-    def prune_splice_junctions(self):
-        for splice in self.db.get_splice_junctions(self.chrom, max_reads=5):
-            if self.is_weak_splice(splice):
-                for e1,e2 in self.db.get_junction_exons(splice):
-                    self.logger.info("Removing splice {}".format(splice))
-                    self.graph.remove_edge(e1, e2)
+        bla = [v for k,v in counts.items() if k not in my]
+        return counts[my[0]] < (np.mean(bla) - np.std(bla))
+
+    def prune_splice_junctions(self, max_reads=5, evidence=2):
+        for splice in self.db.get_splice_junctions(self.chrom, max_reads=max_reads):
+            if len(splice.evidences) <= evidence:
+                self.logger.debug("Checking splice {}".format(splice))
+                if self.is_weak_splice(splice, evidence):
+                    self.logger.debug("Removing splice {}".format(splice))
+                    for e1,e2 in self.db.get_junction_exons(splice):
+                        self.graph.remove_edge(e1, e2)
     
     def filter_long(self, l=1000, evidence=2):
         #print "HOIE"
-        for exon in self.db.get_long_exons(self.chrom, l):
+        for exon in self.db.get_long_exons(self.chrom, l, evidence):
             out_edges = len(self.graph.out_edges([exon]))
             in_edges = len(self.graph.in_edges([exon]))
             self.logger.debug("Filter long: {}, in {} out {}".format(exon, in_edges,out_edges))
 
-            #print exon, in_edges, out_edges
+            #print exon, exon.strand, in_edges, out_edges
             if in_edges >= 0 and out_edges >= 1 and exon.strand == "+" or in_edges >= 1 and out_edges >= 0 and exon.strand == "-":
-                print "Removing", exon
+                #print "Removing", exon
                 self.logger.info("Removing long exon {0}".format(exon))
                 self.graph.remove_node(exon)
     
@@ -276,7 +304,12 @@ class DbCollection:
             all_exons = [s/float(l) for s,l in zip(signal, exon_lengths)]
             rpkms = [s * 1000.0 / self.db.nreads(identifier) * 1e6 for s in all_exons]
             if idtype == "mean_exon":
-                return numpy.mean(rpkms)
+                if len(rpkms) == 0:
+                    self.logger.warning("Empty score array for mean_exon")
+                    return 0
+                else:
+                    return np.mean(rpkms)
+ 
             if idtype == "total_rpkm":
                 return sum(rpkms) 
         
@@ -305,10 +338,16 @@ class DbCollection:
             return rpkm  
         
         elif idtype == "splice":
-            w = 0.0
+            if len(transcript) == 1:
+                return 0
+            w = []
             for e1, e2 in zip(transcript[:-1], transcript[1:]):
-                w += self.db.splice_stats(e1, e2, identifier)
-            return w
+                w.append(self.db.splice_stats(e1, e2, identifier))
+            if len(w) == 0:
+                self.logger.warning("Empty score array for splice")
+                return 0
+            else:
+                return np.sum(w)
         
         elif idtype == "orf":
             start, end = longest_orf(exons_to_seq(transcript))
@@ -316,10 +355,15 @@ class DbCollection:
 
         elif idtype == "evidence":
             #return 1
-            return numpy.mean([len(exon.evidences) for exon in transcript])
+            evidences = [len(exon.evidences) for exon in transcript]
+            if len(evidences) == 0:
+                self.logger.warning("Empty score array for evidence")
+                return 0
+            else:
+                return np.mean(evidences)
     
         elif idtype == "length":
-            return numpy.sum([e.end - e.start for e in transcript])
+            return np.sum([e.end - e.start for e in transcript])
         
         else:
             raise Exception, "Unknown idtype"
@@ -328,7 +372,7 @@ class DbCollection:
         if not identifier_weight or len(identifier_weight) == 0:
             w = [len(t) for t in transcripts]    
         else:
-            w = numpy.array([0] * len(transcripts))
+            w = np.array([0] * len(transcripts))
             pseudo = 1e-10
             for iw in identifier_weight:
                 weight = iw["weight"]
@@ -340,8 +384,8 @@ class DbCollection:
                     tw = self.get_weight(transcript, identifier, idtype)
                     idw.append(pseudo + tw)
     
-                idw = numpy.array(idw)
+                idw = np.array(idw)
                 idw = idw / max(idw) * weight
                 w = w + idw
-        
-        return transcripts[numpy.argmax(w)]
+        self.db.clear_stats_cache() 
+        return transcripts[np.argmax(w)]

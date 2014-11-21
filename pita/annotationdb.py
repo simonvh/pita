@@ -15,18 +15,20 @@ class AnnotationDb():
         if session:
             self.session = session
         else:
-            if conn.startswith("sqlite"):
-                self.Session = db_session(conn, new)
-                self.session = self.Session()
-                self.engine = db_session.engine
-            else:
-                self._init_session(conn, new) 
+            #if conn.startswith("sqlite"):
+            #    self.Session = db_session(conn, new)
+            #    self.session = self.Session()
+            #    self.engine = db_session.engine
+            #else:
+            self._init_session(conn, new) 
         
         if index:
             self.index = GenomeIndex(index)
         else:
             self.index = None
-    
+   
+        self.cache_splice_stats = {}
+        self.cache_feature_stats = {}
     #def __destroy__(self):
     #    self.session.close()
 
@@ -131,6 +133,10 @@ class AnnotationDb():
        
         chrom = exons[0][0]
         strand = exons[0][-1]
+        
+        evidence = get_or_create(self.session, Evidence,
+                name = name,
+                source=source)
 
         seqs = []
         for exon in exons:
@@ -138,10 +144,10 @@ class AnnotationDb():
             real_seq = ""
             if self.index:
                 seq = ""
-                if exon[1] - 20 > 0:
+                try:                    
                     seq = self.index.get_sequence(chrom, exon[1] - 20, exon[2] + 20, strand)
                     real_seq = seq[20:-20]
-                else:
+                except:
                     real_seq = self.index.get_sequence(chrom, exon[1], exon[2], strand)
                 seqs.append(seq)
             
@@ -153,19 +159,21 @@ class AnnotationDb():
                              ftype = "exon",
                              seq = real_seq
                              ) 
-            exon.evidences.append(Evidence(name=name, source=source))
+            exon.evidences.append(evidence)
 
         splice_donors = []
         splice_acceptors = []
+        bla = []
         for i,(start,end) in enumerate([(e1[2], e2[1]) for e1, e2 in zip(exons[0:-1], exons[1:])]):
+            self.logger.debug("{} {} {} {}".format(chrom, start, end, strand))
             sj = get_or_create(self.session, Feature,
                              chrom = chrom,
                              start = start,
                              end = end,
                              strand = strand,
                              ftype = "splice_junction"
-                             ) 
-            sj.evidences.append(Evidence(name=name, source=source))
+                             )
+            sj.evidences.append(evidence)
             
             if strand == "+":
                 if len(seqs) > (i + 1) and len(seqs[i]) > 46:
@@ -189,10 +197,11 @@ class AnnotationDb():
             self.session.rollback()
         else:
             self.session.commit()
-    
+            #for sj in bla:
+            #    self.logger.debug("{} {} {} {}".format(sj.id, sj.chrom, sj.start, sj.end))
     def get_features(self, ftype=None, chrom=None):
-        self.session.query(Feature).options(
-                joinedload('read_counts')).all()
+        #self.session.query(Feature)#.options(
+        #        joinedload('read_counts')).all()
         
         query = self.session.query(Feature)
         if chrom:
@@ -250,12 +259,12 @@ class AnnotationDb():
             features = self.get_features(ftype="splice_junction", chrom=chrom)
         return features 
 
-    def get_long_exons(self, chrom, l):
+    def get_long_exons(self, chrom, l, evidence):
         query = self.session.query(Feature)
         query = query.filter(Feature.ftype == 'exon')
         query = query.filter(Feature.chrom == chrom)
         query = query.filter(Feature.end - Feature.start >= l)
-        return [e for e in query if len(e.evidences) == 1]
+        return [e for e in query if len(e.evidences) <= evidence]
 
 #    def get_evidence_count(self, exon):
 #        query = self.session.query(Feature)
@@ -273,7 +282,11 @@ class AnnotationDb():
         tmp = NamedTemporaryFile(delete=False)
         estore = {}
         self.logger.debug("Writing exons to file {}".format(tmp.name))
-        for exon in self.get_exons(chrom):
+        exons =  self.get_exons(chrom)
+        if len(exons) == 0:
+            return
+        
+        for exon in exons:
             start = exon.start
             end = exon.end
             if span == "start":
@@ -316,7 +329,7 @@ class AnnotationDb():
             fnames = [fnames]
 
         for i, fname in enumerate(fnames):
-            
+            self.logger.debug("Creating read_source for{} {}".format(name, fname)) 
             read_source = get_or_create(self.session, ReadSource, name=name, source=fname)
             self.session.commit() 
             if fname.endswith("bam") and (not nreads or not nreads[i]):
@@ -404,29 +417,52 @@ class AnnotationDb():
                 exon_pairs.append((e1, e2))
         return exon_pairs
 
+    def clear_stats_cache(self):
+        self.cache_feature_stats = {}
+        self.cache_splice_stats = {}
+    
     def feature_stats(self, feature, identifier):
-        q = self.session.query(FeatureReadCount, ReadSource).join(ReadSource)
-        q = q.filter(FeatureReadCount.feature_id == feature.id)
-        q = q.filter(ReadSource.name == identifier)
-       
-        return sum([x[0].count for x in q.all()])
+        if not self.cache_feature_stats.has_key("{}{}".format(feature, identifier)):
+        
+            q = self.session.query(FeatureReadCount, ReadSource).join(ReadSource)
+            q = q.filter(FeatureReadCount.feature_id == feature.id)
+            q = q.filter(ReadSource.name == identifier)
+            self.cache_feature_stats["{}{}".format(feature, identifier)] = sum([x[0].count for x in q.all()])
+
+        return self.cache_feature_stats["{}{}".format(feature, identifier)]
 
     def splice_stats(self, exon1, exon2, identifier):
-        q = self.session.query(Feature)
-        q = q.filter(Feature.ftype == "splice_junction")
-        q = q.filter(Feature.chrom == exon1.chrom)
-        q = q.filter(Feature.strand == exon1.strand)
-        q = q.filter(Feature.start == exon1.end)
-        q = q.filter(Feature.end == exon2.start)
+        if not self.cache_splice_stats.has_key("{}{}{}".format(self, exon1, exon2)):
+        
+            q = self.session.query(Feature)
+            q = q.filter(Feature.ftype == "splice_junction")
+            q = q.filter(Feature.chrom == exon1.chrom)
+            q = q.filter(Feature.strand == exon1.strand)
+            q = q.filter(Feature.start == exon1.end)
+            q = q.filter(Feature.end == exon2.start)
 
-        splice = q.first()
-        return self.feature_stats(splice, identifier)
+            splice = q.first()
+        
+            self.cache_splice_stats["{}{}{}".format(self, exon1, exon2)] = self.feature_stats(splice, identifier)
+
+        return self.cache_splice_stats["{}{}{}".format(self, exon1, exon2)]
 
     def nreads(self, identifier):
         q = self.session.query(ReadSource)
         q = q.filter(ReadSource.name == identifier)
         return sum([s.nreads for s in q.all()])
 
+    
+    def get_splice_count(self, e1, e2):
+        counts = self.session.query(func.sum(FeatureReadCount.count)).\
+                join(Feature).\
+                filter(Feature.chrom == e1.chrom).\
+                filter(Feature.start == e1.end).\
+                filter(Feature.end == e2.start).\
+                filter(Feature.ftype == "splice_junction").\
+                group_by(Feature.id).all()
+        return sum([int(x[0]) for x in counts])
+    
     def fetch_feature(self, f):
         """ Feature as list """
         chrom, start, end, strand, ftype, seq = f

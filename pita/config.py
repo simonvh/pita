@@ -44,7 +44,7 @@ class PitaConfig:
         # Scoring weight
         self.weight = {}
         if self.config.has_key("scoring"):
-            weight = self.config["scoring"]
+            self.weight = self.config["scoring"]
 
         # load annotation files
         self._parse_annotation()

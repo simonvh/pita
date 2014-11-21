@@ -9,12 +9,12 @@ import sys
 from tempfile import NamedTemporaryFile
 from pita.config import SEP
 
-def load_chrom_data(conn, chrom, anno_files, data, index=None):
+def load_chrom_data(conn, new, chrom, anno_files, data, index=None):
     logger = logging.getLogger("pita")
     
     try:
         # Read annotation files
-        db = AnnotationDb(index=index, conn=conn)
+        db = AnnotationDb(index=index, conn=conn, new=new)
         logger.debug("{} {}".format(chrom, id(db.session)))
         logger.info("Reading annotation for {0}".format(chrom))
         for name, fname, tabix_file, ftype, min_exons in anno_files:
@@ -50,13 +50,13 @@ def load_chrom_data(conn, chrom, anno_files, data, index=None):
 def get_chrom_models(conn, chrom, weight, prune=None):
     
     logger = logging.getLogger("pita")
-       
+    logger.critical(str(weight)) 
     try:
         db = AnnotationDb(conn=conn)
         mc = DbCollection(db, chrom)
         # Remove long exons with only one evidence source
         mc.filter_long(l=2000, evidence=2)
-        mc.prune_splice_junctions()
+        mc.prune_splice_junctions(evidence=3)
         # Remove short introns
         #mc.filter_short_introns()
         # Prune spurious exon linkages
@@ -68,17 +68,19 @@ def get_chrom_models(conn, chrom, weight, prune=None):
         exons = {}
         logger.info("Calling transcripts for {0}".format(chrom))
         for cluster in mc.get_connected_models():
+            logger.debug("{}: got cluster".format(chrom))
             while len(cluster) > 0:
                 #logger.debug("best model")
                 best_model = mc.max_weight(cluster, weight)
-                #logger.debug("best variant")
-                best_model = mc.get_best_variant(best_model, weight)                
+                logger.debug("{}: got best model".format(chrom))
+                logger.debug("{}: got best variant".format(chrom))
                 genename = "{0}:{1}-{2}_".format(
                                             best_model[0].chrom,
                                             best_model[0].start,
                                             best_model[-1].end,
                                             )
                    
+                
                 logger.info("Best model: {0} with {1} exons".format(genename, len(best_model)))
                 models[genename] = [genename, best_model]
 #            
