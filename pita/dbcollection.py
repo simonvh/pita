@@ -200,11 +200,15 @@ class DbCollection:
         exons = []
         my = []
         for e1,e2 in self.db.get_junction_exons(splice):
-            my.append((e1.end, e2.start))        
-            for e in [e1, e2]:
-                if not e in exons:
-                    exons.append(e) 
+            if e1 in self.graph and e2 in self.graph:
+                my.append((e1.end, e2.start))        
+                for e in [e1, e2]:
+                    if not e in exons:
+                        exons.append(e) 
         
+        if len(exons) == 0:
+            return False
+
         splices = self.graph.edges(recursive_neighbors(self.graph, exons))
         if len(splices) == 1:
             return False
