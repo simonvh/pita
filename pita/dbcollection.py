@@ -229,7 +229,8 @@ class DbCollection:
                 if self.is_weak_splice(splice, evidence):
                     self.logger.debug("Removing splice {}".format(splice))
                     for e1,e2 in self.db.get_junction_exons(splice):
-                        self.graph.remove_edge(e1, e2)
+                        if (e1,e2) in self.graph.edges():
+                            self.graph.remove_edge(e1, e2)
     
     def filter_long(self, l=1000, evidence=2):
         #print "HOIE"
