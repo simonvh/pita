@@ -41,6 +41,8 @@ class PitaConfig:
         if self.config.has_key("prune_overlap"):
             self.prune = self.config["prune_overlap"]
         
+        self.keep = []
+        
         # Scoring weight
         self.weight = {}
         if self.config.has_key("scoring"):
@@ -75,6 +77,10 @@ class PitaConfig:
             min_exons = 2
             if d.has_key("min_exons"):
                 min_exons = d["min_exons"]
+            
+            if d.has_key("keep") and d["keep"]:
+                self.keep.append(fname)
+            
             if not t in VALID_TYPES:
                 self.logger.error("Invalid type: {0}".format(t))
                 sys.exit(1)

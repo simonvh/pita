@@ -221,9 +221,14 @@ class DbCollection:
         self.logger.debug("{} {} {}".format(counts[my[0]], np.mean(bla),  np.std(bla)))
         return counts[my[0]] < 0.1 * np.mean(bla)# - np.std(bla))
 
-    def prune_splice_junctions(self, max_reads=10, evidence=2):
+    def prune_splice_junctions(self, max_reads=10, evidence=2, keep=[]):
+        keep = set(keep)
         for splice in self.db.get_splice_junctions(self.chrom, max_reads=max_reads):
             self.logger.debug("Splice {}, evidence {}".format(splice, len(splice.evidences)))
+            ev_sources = [e.source for e in splice.evidences]
+            if keep.intersection(ev_sources):
+                self.logger.debug("Keeping this splice {}".format(splice))
+                continue
             if len(splice.evidences) <= evidence:
                 self.logger.debug("Checking splice {}".format(splice))
                 if self.is_weak_splice(splice, evidence):

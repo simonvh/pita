@@ -47,7 +47,7 @@ def load_chrom_data(conn, new, chrom, anno_files, data, index=None):
         logger.exception("Error on {0}".format(chrom))
         raise
 
-def get_chrom_models(conn, chrom, weight, prune=None):
+def get_chrom_models(conn, chrom, weight, prune=None, keep=[]):
     
     logger = logging.getLogger("pita")
     logger.critical(str(weight)) 
@@ -56,7 +56,7 @@ def get_chrom_models(conn, chrom, weight, prune=None):
         mc = DbCollection(db, chrom)
         # Remove long exons with only one evidence source
         mc.filter_long(l=2000, evidence=2)
-        mc.prune_splice_junctions(evidence=3, max_reads=10)
+        mc.prune_splice_junctions(evidence=3, max_reads=10, keep=keep)
         # Remove short introns
         #mc.filter_short_introns()
         # Prune spurious exon linkages
