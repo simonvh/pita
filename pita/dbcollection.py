@@ -12,6 +12,7 @@ from networkx.algorithms.connectivity import minimum_st_node_cut
 from networkx.algorithms.flow import ford_fulkerson
 from itertools import izip, count
 from gimmemotifs.genome_index import GenomeIndex
+import random
 
 def connected_models(graph):
     for u, v in graph.edges():
@@ -387,6 +388,11 @@ class DbCollection:
             raise Exception, "Unknown idtype"
 
     def max_weight(self, transcripts, identifier_weight):
+        max_transcripts = 10000
+        if len(transcripts) > max_transcripts:
+            self.logger.warn("More than {} transcripts, random sampling to a managable number".format(max_transcripts))
+            transcripts = random.sample(transcripts, max_transcripts)
+        
         if not identifier_weight or len(identifier_weight) == 0:
             w = [len(t) for t in transcripts]    
         else:
@@ -398,7 +404,9 @@ class DbCollection:
                 identifier = iw["name"]
                 
                 idw = []
-                for transcript in transcripts:
+                for i, transcript in enumerate(transcripts):
+                    #if i % 10000 == 0:
+                    #    self.logger.debug("{} transcripts processed, weight {}".format(i, identifier))
                     tw = self.get_weight(transcript, identifier, idtype)
                     idw.append(pseudo + tw)
     
