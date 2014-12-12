@@ -237,7 +237,11 @@ class DbCollection:
                     for e1,e2 in self.db.get_junction_exons(splice):
                         if (e1,e2) in self.graph.edges():
                             self.graph.remove_edge(e1, e2)
-    
+                            for node in e1, e2:
+                                if len(self.graph.edges(node)) == 0:
+                                    self.logger.debug("Removing lonely exon {}".format(node))
+                                    self.graph.remove_node(node)
+   
     def filter_long(self, l=1000, evidence=2):
         #print "HOIE"
         for exon in self.db.get_long_exons(self.chrom, l, evidence):
