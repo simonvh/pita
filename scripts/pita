@@ -68,7 +68,7 @@ basename = os.path.splitext(configfile)[0]
 logger = setup_logging(basename, debug_level)
 
 # Load config file
-config = PitaConfig(configfile)
+config = PitaConfig(configfile, args.reannotate)
 
 # FASTA output
 protein_fh = open("{0}.protein.fa".format(basename), "w")
@@ -156,7 +156,7 @@ if threads > 1:
 else:
     for chrom in chroms:
         if not args.reannotate:
-            load_chrom_data(config.db_conn, chrom, config.anno_files, config.data, index)
+            load_chrom_data(config.db_conn, True, chrom, config.anno_files, config.data, index)
         for genename, best_exons in get_chrom_models(config.db_conn, chrom, config.weight, config.prune, config.keep):
             print_output(genename, best_exons)
 
