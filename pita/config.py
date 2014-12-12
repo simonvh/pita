@@ -16,7 +16,7 @@ VALID_TYPES = ["bed", "gff", "gff3", "gtf"]
 DEBUG_LEVELS = ["CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"]
 
 class PitaConfig:
-    def __init__(self, fname):
+    def __init__(self, fname, reannotate=False):
         """ fname: name of yaml configuration file
         """
         
@@ -49,7 +49,7 @@ class PitaConfig:
             self.weight = self.config["scoring"]
 
         # load annotation files
-        self._parse_annotation()
+        self._parse_annotation(reannotate)
   
         # only use chromosome specified in config file
         self.chroms = self.chroms.keys()
@@ -62,7 +62,7 @@ class PitaConfig:
         # check the data files
         self._check_data_files()
 
-    def _parse_annotation(self):
+    def _parse_annotation(self, reannotate=False):
 
         if not self.config.has_key("annotation") or len(self.config["annotation"]) == 0:
             self.logger.error("No annotation files specified.")
@@ -88,35 +88,37 @@ class PitaConfig:
                 self.logger.error("File does not exist: {0}".format(fname))
                 sys.exit(1)
             else:
-                self.logger.info("Creating tabix index for {0}".format(os.path.basename(fname)))
-                self.logger.debug("Preparing {0} for tabix".format(fname))
-                tmp = NamedTemporaryFile(prefix="pita")
-                preset = "gff"
-                if t == "bed":
-                    cmd = "sort -k1,1 -k2g,2 {0} | grep -v track | grep -v \"^#\" > {1}"
-                    preset = "bed"
-                elif t in ["gff", "gff3", "gtf3"]:
-                    cmd = "sort -k1,1 -k4g,4 {0} | grep -v \"^#\" > {1}"
+                tabix_file = ""
+                if not reannotate:
+                    self.logger.info("Creating tabix index for {0}".format(os.path.basename(fname)))
+                    self.logger.debug("Preparing {0} for tabix".format(fname))
+                    tmp = NamedTemporaryFile(prefix="pita")
+                    preset = "gff"
+                    if t == "bed":
+                        cmd = "sort -k1,1 -k2g,2 {0} | grep -v track | grep -v \"^#\" > {1}"
+                        preset = "bed"
+                    elif t in ["gff", "gff3", "gtf3"]:
+                        cmd = "sort -k1,1 -k4g,4 {0} | grep -v \"^#\" > {1}"
+                    
+                    # Sort the input file
+                    self.logger.debug(cmd.format(fname, tmp.name))
+                    subprocess.call(cmd.format(fname, tmp.name), shell=True)
+                    # Compress using bgzip
+                    self.logger.debug("compressing {0}".format(tmp.name))
+                    tabix_file = tmp.name + ".gz"
+                    pysam.tabix_compress(tmp.name, tabix_file)
+                    tmp.close()
+                    # Index (using tabix command line, as pysam.index results in a Segmentation fault
+                    self.logger.debug("indexing {0}".format(tabix_file))
+                    subprocess.call("tabix {0} -p {1}".format(tabix_file, preset), shell=True)
                 
-                # Sort the input file
-                self.logger.debug(cmd.format(fname, tmp.name))
-                subprocess.call(cmd.format(fname, tmp.name), shell=True)
-                # Compress using bgzip
-                self.logger.debug("compressing {0}".format(tmp.name))
-                tabix_file = tmp.name + ".gz"
-                pysam.tabix_compress(tmp.name, tabix_file)
-                tmp.close()
-                # Index (using tabix command line, as pysam.index results in a Segmentation fault
-                self.logger.debug("indexing {0}".format(tabix_file))
-                subprocess.call("tabix {0} -p {1}".format(tabix_file, preset), shell=True)
-                
-                #fobj = pysam.Tabixfile(tabix_file)
+                     # Save chromosome names
+                    for chrom in pysam.Tabixfile(tabix_file).contigs:
+                        self.chroms[chrom] = 1
+
                 # Add file info
                 self.anno_files.append([d["name"], fname, tabix_file, t, min_exons])
-                # Save chromosome names
-                for chrom in pysam.Tabixfile(tabix_file).contigs:
-                    self.chroms[chrom] = 1
-
+       
     def _check_data_files(self):
         # data  config
         self.logger.info("Checking data files")
