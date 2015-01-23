@@ -50,12 +50,16 @@ def load_chrom_data(conn, new, chrom, anno_files, data, index=None):
 def get_chrom_models(conn, chrom, weight, prune=None, keep=[]):
     
     logger = logging.getLogger("pita")
-    logger.critical(str(weight)) 
+    logger.debug(str(weight)) 
     try:
         db = AnnotationDb(conn=conn)
+        
+        db.filter_evidence(chrom, "/home/simon/prj/laevis/pita/v1.93/tuba/xlaevisEST.sorted.orient.gmap.bed")
+
+        
         mc = DbCollection(db, chrom)
-        # Remove long exons with only one evidence source
-        mc.filter_long(l=2000, evidence=2)
+        # Remove long exons with 2 or less evidence sources
+        mc.filter_long(l=2000, evidence=3)
         mc.prune_splice_junctions(evidence=3, max_reads=10, keep=keep)
         # Remove short introns
         #mc.filter_short_introns()

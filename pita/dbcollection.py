@@ -70,8 +70,14 @@ class DbCollection:
             self.add_feature(exon)
         
         self.logger.debug("Loading introns in graph")
-        for junction in self.db.get_splice_junctions(chrom):
+        n = 0
+        for junction in self.db.get_splice_junctions(chrom, ev_count=1, read_count=20):
+        #for junction in self.db.get_splice_junctions(chrom):
+            #print junction
+            n += 1
             self.add_feature(junction)
+        self.logger.debug("{} introns were loaded".format(n))
+
 
     def add_feature(self, feature):
         """ 
@@ -201,7 +207,7 @@ class DbCollection:
         exons = []
         my = []
         for e1,e2 in self.db.get_junction_exons(splice):
-            if e1 in self.graph and e2 in self.graph:
+            if e1 in self.graph and e2 in self.graph and (e1, e2) in self.graph.edges():
                 my.append((e1.end, e2.start))        
                 for e in [e1, e2]:
                     if not e in exons:
@@ -213,12 +219,15 @@ class DbCollection:
         splices = self.graph.edges(recursive_neighbors(self.graph, exons))
         if len(splices) == 1:
             return False
+        
         counts = {}
         for s in splices:
             if not counts.has_key((s[0].end, s[1].start)):
                 counts[(s[0].end, s[1].start)] = self.db.get_splice_count(s[0], s[1])
 
         bla = [v for k,v in counts.items() if k not in my]
+        if len(bla) == 0:
+            return False
         self.logger.debug("{} {} {}".format(counts[my[0]], np.mean(bla),  np.std(bla)))
         return counts[my[0]] < 0.1 * np.mean(bla)# - np.std(bla))
 
@@ -325,7 +334,11 @@ class DbCollection:
 
         elif idtype in ["mean_exon", "total_rpkm"]:
             all_exons = [s/float(l) for s,l in zip(signal, exon_lengths)]
-            rpkms = [s * 1000.0 / self.db.nreads(identifier) * 1e6 for s in all_exons]
+            nreads = self.db.nreads(identifier)
+            if not nreads:
+                nreads = 1000000
+                self.logger.warn("Number of reads in db is 0 for {}".format(identifier))
+            rpkms = [s * 1000.0 / nreads * 1e6 for s in all_exons]
             if idtype == "mean_exon":
                 if len(rpkms) == 0:
                     self.logger.warning("Empty score array for mean_exon")

@@ -66,6 +66,10 @@ class AnnotationDb():
     def load_yaml(self, fname):
         data = yaml.load(open(fname))
         source_map = {}
+        
+        if not data['feature']:
+            return 
+
         for old_id,name,fname,nreads in data['read_source']:
             r = get_or_create(self.session, ReadSource,
                     name=name, source=fname, nreads=nreads)
@@ -78,7 +82,10 @@ class AnnotationDb():
             Feature.__table__.insert(),
             [dict(zip(t, row[1:])) for row in data['feature']]
             )
-    
+         
+        self.session.commit()
+        
+       # print data['feature'][0][1:]
         first = self.fetch_feature(data['feature'][0][1:])
         last = self.fetch_feature(data['feature'][-1][1:])
     
@@ -93,26 +100,28 @@ class AnnotationDb():
             [dict(zip(t, row)) for row in data['read_count']]
             )
     
-        t = ["name","source"]
-        result = self.engine.execute(
-            Evidence.__table__.insert(),
-            [dict(zip(t, row[1:])) for row in data['evidence']]
-            )
+        if data['evidence']:
+            t = ["name","source"]
+            result = self.engine.execute(
+                Evidence.__table__.insert(),
+                [dict(zip(t, row[1:])) for row in data['evidence']]
+                )
     
-        first = self.fetch_evidence(data['evidence'][0][1:])
-        last = self.fetch_evidence(data['evidence'][-1][1:])
+            self.session.commit()
+            first = self.fetch_evidence(data['evidence'][0][1:])
+            last = self.fetch_evidence(data['evidence'][-1][1:])
     
-        ev_map = dict(zip([x[0] for x in data['evidence']], range(first.id, last.id + 1)))
+            ev_map = dict(zip([x[0] for x in data['evidence']], range(first.id, last.id + 1)))
     
-        data['feature_evidence'] = [
-                [f_map[row[0]], ev_map[row[1]]] for row in data['feature_evidence']
-            ]
+            data['feature_evidence'] = [
+                    [f_map[row[0]], ev_map[row[1]]] for row in data['feature_evidence']
+                ]
     
-        t = ["feature_id", "evidence_id"]
-        result = self.engine.execute(
-            FeatureEvidence.__table__.insert(),
-            [dict(zip(t, row)) for row in data['feature_evidence']]
-            )
+            t = ["feature_id", "evidence_id"]
+            result = self.engine.execute(
+                FeatureEvidence.__table__.insert(),
+                [dict(zip(t, row)) for row in data['feature_evidence']]
+                )
     
     def add_transcript(self, name, source, exons):
         """
@@ -204,6 +213,7 @@ class AnnotationDb():
         #        joinedload('read_counts')).all()
         
         query = self.session.query(Feature)
+        query = query.filter(Feature.flag.op("IS NOT")(True))
         if chrom:
             query = query.filter(Feature.chrom == chrom)
         if ftype:
@@ -220,6 +230,20 @@ class AnnotationDb():
         if ev_count and read_count:
             # All splices with no read, but more than one evidence source
             fs = self.session.query(Feature).\
+                    filter(Feature.flag.op("IS NOT")(True)).\
+                    filter(Feature.ftype == "splice_junction").\
+                    filter(Feature.chrom == chrom).\
+                    outerjoin(FeatureReadCount).\
+                    group_by(Feature).\
+                    having(func.sum(FeatureReadCount.count) < read_count)
+
+            for splice in fs:
+                self.logger.debug("Considering {}".format(splice))        
+                if len(splice.evidences) >= ev_count:
+                    features.append(splice)
+            
+            fs = self.session.query(Feature).\
+                    filter(Feature.flag.op("IS NOT")(True)).\
                     filter(Feature.ftype == "splice_junction").\
                     filter(Feature.chrom == chrom).\
                     outerjoin(FeatureReadCount).\
@@ -227,20 +251,26 @@ class AnnotationDb():
                     having(func.sum(FeatureReadCount.count) == None)
 
             for splice in fs:
+                self.logger.debug("Considering {} (no reads)".format(splice))        
                 if len(splice.evidences) >= ev_count:
                     features.append(splice)
 
             # All splcies with more than x reads
             fs = self.session.query(Feature).\
+                    filter(Feature.flag.op("IS NOT")(True)).\
                     filter(Feature.ftype == "splice_junction").\
                     filter(Feature.chrom == chrom).\
                     outerjoin(FeatureReadCount).\
                     group_by(Feature).\
                     having(func.sum(FeatureReadCount.count) >= read_count)
-            features += [f for f in fs]
+            for f in fs:
+                self.logger.debug("Considering {} (reads)".format(f))        
+                features.append(f)
+            #features += [f for f in fs]
         
         elif max_reads:
             fs = self.session.query(Feature).\
+                    filter(Feature.flag.op("IS NOT")(True)).\
                     filter(Feature.ftype == "splice_junction").\
                     filter(Feature.chrom == chrom).\
                     outerjoin(FeatureReadCount).\
@@ -249,6 +279,7 @@ class AnnotationDb():
 
             features += [f for f in fs if len(f.evidences) > 0]
             fs = self.session.query(Feature).\
+                    filter(Feature.flag.op("IS NOT")(True)).\
                     filter(Feature.ftype == "splice_junction").\
                     filter(Feature.chrom == chrom).\
                     outerjoin(FeatureReadCount).\
@@ -263,6 +294,7 @@ class AnnotationDb():
         if strand == "+":
         
             q = self.session.query(Feature).\
+                filter(Feature.flag.op("IS NOT")(True)).\
                 filter(Feature.ftype == "exon").\
                 filter(Feature.chrom == chrom).\
                 filter(Feature.strand == strand).\
@@ -281,17 +313,72 @@ class AnnotationDb():
     
     def get_long_exons(self, chrom, l, evidence):
         query = self.session.query(Feature)
+        query = query.filter(Feature.flag.op("IS NOT")(True))
         query = query.filter(Feature.ftype == 'exon')
         query = query.filter(Feature.chrom == chrom)
         query = query.filter(Feature.end - Feature.start >= l)
         return [e for e in query if len(e.evidences) <= evidence]
 
-#    def get_evidence_count(self, exon):
-#        query = self.session.query(Feature)
-#        query = query.filter(Feature.ftype == 'exon')
-#        query = query.filter(Feature.end - Feature.start >= l)
-#        return [e for e in query if len(e.evidences) == 1]
-    
+
+
+    def filter_evidence(self, chrom, source):
+
+        # Select all splice_junctions that are supported by other evidence
+        n = self.session.query(Feature.id).\
+                        join(FeatureEvidence).\
+                        join(Evidence).\
+                        filter(Feature.ftype == "splice_junction").\
+                        filter(Evidence.source != source).\
+                        filter(Feature.chrom == chrom).\
+                        subquery("n")
+       
+       # Select the total number of transcript from this source 
+       # per splice junction
+       s = self.session.query(Feature.id, func.count('*').label('total')).\
+                join(FeatureEvidence).\
+                join(Evidence).\
+                filter(Feature.ftype == "splice_junction").\
+                filter(Evidence.source == source).\
+                filter(Feature.chrom == chrom).\
+                group_by(Feature.id).\
+                subquery("s")
+
+        # Select all splice junctions where support from this source
+        # is only 1 transcript and which is not supported by any 
+        # other sources
+        query = self.session.query(Feature.id).filter(and_(
+            Feature.id == s.c.id,
+            s.c.total == 1)).\
+            filter(Feature.id.notin_(n))
+
+        ids = [i[0] for i in query]
+        
+        # Retrieve coordinates of marked splice sites
+        query = self.session.query(Feature.start, Feature.end).\
+                filter(Feature.id.in_(ids))
+        
+        splices = [i for i in query]
+        starts = [s[0] for s in splices]
+        ends = [s[1] for s in splices]
+
+        # Flag splice junctions
+        query = self.session.query(Feature).\
+                filter(Feature.id.in_(ids)).update({Feature.flag:True}, synchronize_session=False)
+        
+        # Flag exons where start matches the splice_junction end
+        query = self.session.query(Feature).\
+                filter(Feature.start.in_(ends)).\
+                filter(Feature.ftype == "exon").\
+                update({Feature.flag:True}, synchronize_session=False)
+        
+        # Flag exons where end matches the splice_junction start
+        query = self.session.query(Feature).\
+                filter(Feature.end.in_(starts)).\
+                filter(Feature.ftype == "exon").\
+                update({Feature.flag:True}, synchronize_session=False)
+        
+        self.session.commit()
+
     def get_read_statistics(self, chrom, fnames, name, span="all", extend=(0,0), nreads=None):
         from fluff.fluffio import get_binned_stats
         from tempfile import NamedTemporaryFile
@@ -422,14 +509,17 @@ class AnnotationDb():
             Feature.strand == junction.strand,
             Feature.end == junction.start,
             Feature.ftype == "exon"
-            ))
+            )).\
+            filter(Feature.flag.op("IS NOT")(True))
+
         
         right = self.session.query(Feature).filter(and_(
             Feature.chrom == junction.chrom,
             Feature.strand == junction.strand,
             Feature.start == junction.end,
             Feature.ftype == "exon"
-            ))
+            )).\
+            filter(Feature.flag.op("IS NOT")(True))
 
         exon_pairs = []
         for e1 in left:
@@ -471,7 +561,6 @@ class AnnotationDb():
         q = self.session.query(ReadSource)
         q = q.filter(ReadSource.name == identifier)
         return sum([s.nreads for s in q.all()])
-
     
     def get_splice_count(self, e1, e2):
         counts = self.session.query(func.sum(FeatureReadCount.count)).\
@@ -486,25 +575,39 @@ class AnnotationDb():
     def fetch_feature(self, f):
         """ Feature as list """
         chrom, start, end, strand, ftype, seq = f
-        feature = self.session.query(Feature).filter(and_(
-                Feature.chrom == chrom,
-                Feature.start == start,
-                Feature.end == end,
-                Feature.strand == strand,
-                Feature.ftype == ftype,
-                Feature.seq == seq,
-                ))
-    
-        return feature[0]
+
+        feature = self.session.query(Feature).\
+                filter(Feature.chrom == chrom).\
+                filter(Feature.start == start).\
+                filter(Feature.end == end).\
+                filter(Feature.strand == strand).\
+                filter(Feature.ftype == ftype).\
+                filter(Feature.seq == seq)
+        result = feature.first()
+        return result
     
     def fetch_evidence(self, f):
         """ Feature as list """
         name, source = f
-        evidence = self.session.query(Evidence).filter(and_(
-            Evidence.name == name,
-            Evidence.source == source
-            ))
+        evidence = self.session.query(Evidence).\
+            filter(Evidence.name == name).\
+            filter(Evidence.source == source)
 
-        return evidence[0]
+        result = evidence.first()
+        return result
 
-
+    def get_transcript_statistics(self, exons):
+        stats = []
+        for exon in exons:
+            q = self.session.query(ReadSource, 
+                    func.sum(FeatureReadCount.count)).\
+                    join(FeatureReadCount).\
+                    join(Feature).\
+                    filter(Feature.chrom == exon[0]).\
+                    filter(Feature.start == exon[1]).\
+                    filter(Feature.end == exon[2]).\
+                    filter(Feature.strand == exon[3]).\
+                    group_by(ReadSource.name)
+            stats.append(dict([(row[0].name, int(row[1])) for row in q.all()]))
+        return stats
+                   
