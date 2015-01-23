@@ -2,8 +2,8 @@ import os
 import sys
 import logging
 from gimmemotifs.genome_index import GenomeIndex
-from sqlalchemy import and_,func
-from sqlalchemy.orm import joinedload
+from sqlalchemy import and_,or_,func
+from sqlalchemy.orm import joinedload,aliased
 from pita import db_session
 from pita.db_backend import * 
 from pita.util import read_statistics, get_splice_score
@@ -318,32 +318,31 @@ class AnnotationDb():
         query = query.filter(Feature.chrom == chrom)
         query = query.filter(Feature.end - Feature.start >= l)
         return [e for e in query if len(e.evidences) <= evidence]
-
-
-
+    
     def filter_evidence(self, chrom, source):
+        query = self.session.query(Feature).\
+                update({Feature.flag:False}, synchronize_session=False)
+        self.session.commit()
 
-        # Select all splice_junctions that are supported by other evidence
+        # Select all features that are supported by other evidence
         n = self.session.query(Feature.id).\
                         join(FeatureEvidence).\
                         join(Evidence).\
-                        filter(Feature.ftype == "splice_junction").\
                         filter(Evidence.source != source).\
                         filter(Feature.chrom == chrom).\
                         subquery("n")
        
-       # Select the total number of transcript from this source 
-       # per splice junction
-       s = self.session.query(Feature.id, func.count('*').label('total')).\
-                join(FeatureEvidence).\
-                join(Evidence).\
-                filter(Feature.ftype == "splice_junction").\
-                filter(Evidence.source == source).\
-                filter(Feature.chrom == chrom).\
-                group_by(Feature.id).\
-                subquery("s")
+        # Select the total number of transcript from this source 
+        # per feature
+        s = self.session.query(Feature.id, func.count('*').label('total')).\
+               join(FeatureEvidence).\
+               join(Evidence).\
+               filter(Evidence.source == source).\
+               filter(Feature.chrom == chrom).\
+               group_by(Feature.id).\
+               subquery("s")
 
-        # Select all splice junctions where support from this source
+        # Select all features where support from this source
         # is only 1 transcript and which is not supported by any 
         # other sources
         query = self.session.query(Feature.id).filter(and_(
@@ -353,32 +352,11 @@ class AnnotationDb():
 
         ids = [i[0] for i in query]
         
-        # Retrieve coordinates of marked splice sites
-        query = self.session.query(Feature.start, Feature.end).\
-                filter(Feature.id.in_(ids))
-        
-        splices = [i for i in query]
-        starts = [s[0] for s in splices]
-        ends = [s[1] for s in splices]
-
-        # Flag splice junctions
+        # Flag features
         query = self.session.query(Feature).\
                 filter(Feature.id.in_(ids)).update({Feature.flag:True}, synchronize_session=False)
-        
-        # Flag exons where start matches the splice_junction end
-        query = self.session.query(Feature).\
-                filter(Feature.start.in_(ends)).\
-                filter(Feature.ftype == "exon").\
-                update({Feature.flag:True}, synchronize_session=False)
-        
-        # Flag exons where end matches the splice_junction start
-        query = self.session.query(Feature).\
-                filter(Feature.end.in_(starts)).\
-                filter(Feature.ftype == "exon").\
-                update({Feature.flag:True}, synchronize_session=False)
-        
         self.session.commit()
-
+        
     def get_read_statistics(self, chrom, fnames, name, span="all", extend=(0,0), nreads=None):
         from fluff.fluffio import get_binned_stats
         from tempfile import NamedTemporaryFile
