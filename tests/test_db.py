@@ -153,10 +153,10 @@ def test_db_collection(db):
         print model
 
 def test_get_long_exons(db):
-    assert 0 == len(db.get_long_exons("scaffold_1", 100000))
-    assert 1 == len(db.get_long_exons("scaffold_1", 50000))
-    assert 2 == len(db.get_long_exons("scaffold_1", 10000))
-    assert 3 == len(db.get_long_exons("scaffold_1", 50))
+    assert 0 == len(db.get_long_exons("scaffold_1", 100000, 2))
+    assert 1 == len(db.get_long_exons("scaffold_1", 50000, 2))
+    assert 2 == len(db.get_long_exons("scaffold_1", 10000, 2))
+    assert 3 == len(db.get_long_exons("scaffold_1", 50, 2))
 
 def test_load_yaml(empty_db):
     db = empty_db
