@@ -214,6 +214,8 @@ class AnnotationDb():
         
         query = self.session.query(Feature)
         query = query.filter(Feature.flag.op("IS NOT")(True))
+        #query = query.filter(Feature.flag == Fal)
+        
         if chrom:
             query = query.filter(Feature.chrom == chrom)
         if ftype:
@@ -320,9 +322,10 @@ class AnnotationDb():
         return [e for e in query if len(e.evidences) <= evidence]
     
     def filter_evidence(self, chrom, source):
-        query = self.session.query(Feature).\
-                update({Feature.flag:False}, synchronize_session=False)
-        self.session.commit()
+        self.logger.debug("Filtering {}".format(source))
+        #query = self.session.query(Feature).\
+        #        update({Feature.flag:False}, synchronize_session=False)
+        #self.session.commit()
 
         # Select all features that are supported by other evidence
         n = self.session.query(Feature.id).\
@@ -345,16 +348,18 @@ class AnnotationDb():
         # Select all features where support from this source
         # is only 1 transcript and which is not supported by any 
         # other sources
-        query = self.session.query(Feature.id).filter(and_(
+        a = self.session.query(Feature.id).filter(and_(
             Feature.id == s.c.id,
             s.c.total == 1)).\
-            filter(Feature.id.notin_(n))
+            filter(Feature.id.notin_(n)).\
+            subquery("a")
 
-        ids = [i[0] for i in query]
+        #ids = [i[0] for i in query]
         
         # Flag features
         query = self.session.query(Feature).\
-                filter(Feature.id.in_(ids)).update({Feature.flag:True}, synchronize_session=False)
+                filter(Feature.id.in_(a)).\
+                update({Feature.flag:True}, synchronize_session=False)
         self.session.commit()
         
     def get_read_statistics(self, chrom, fnames, name, span="all", extend=(0,0), nreads=None):

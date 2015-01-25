@@ -47,15 +47,15 @@ def load_chrom_data(conn, new, chrom, anno_files, data, index=None):
         logger.exception("Error on {0}".format(chrom))
         raise
 
-def get_chrom_models(conn, chrom, weight, prune=None, keep=[]):
+def get_chrom_models(conn, chrom, weight, prune=None, keep=[], filter=[]):
     
     logger = logging.getLogger("pita")
     logger.debug(str(weight)) 
     try:
         db = AnnotationDb(conn=conn)
         
-        db.filter_evidence(chrom, "/home/simon/prj/laevis/pita/v1.93/tuba/xlaevisEST.sorted.orient.gmap.bed")
-
+        for ev in filter:
+            db.filter_evidence(chrom, ev) 
         
         mc = DbCollection(db, chrom)
         # Remove long exons with 2 or less evidence sources

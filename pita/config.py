@@ -43,6 +43,8 @@ class PitaConfig:
         
         self.keep = []
         
+        self.filter = []
+
         # Scoring weight
         self.weight = {}
         if self.config.has_key("scoring"):
@@ -80,7 +82,10 @@ class PitaConfig:
             
             if d.has_key("keep") and d["keep"]:
                 self.keep.append(fname)
-            
+           
+            if d.has_key("filter") and d["filter"]:
+                self.filter.append(fname)
+
             if not t in VALID_TYPES:
                 self.logger.error("Invalid type: {0}".format(t))
                 sys.exit(1)
