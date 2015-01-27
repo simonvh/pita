@@ -42,8 +42,8 @@ class PitaConfig:
             self.prune = self.config["prune_overlap"]
         
         self.keep = []
-        
         self.filter = []
+        self.experimental = []
 
         # Scoring weight
         self.weight = {}
@@ -85,6 +85,9 @@ class PitaConfig:
            
             if d.has_key("filter") and d["filter"]:
                 self.filter.append(fname)
+            
+            if d.has_key("experimental") and d["experimental"]:
+                self.experimental.append(fname)
 
             if not t in VALID_TYPES:
                 self.logger.error("Invalid type: {0}".format(t))

@@ -321,17 +321,18 @@ class AnnotationDb():
         query = query.filter(Feature.end - Feature.start >= l)
         return [e for e in query if len(e.evidences) <= evidence]
     
-    def filter_evidence(self, chrom, source):
+    def filter_evidence(self, chrom, source, experimental):
         self.logger.debug("Filtering {}".format(source))
-        #query = self.session.query(Feature).\
-        #        update({Feature.flag:False}, synchronize_session=False)
-        #self.session.commit()
+        query = self.session.query(Feature).\
+                update({Feature.flag:False}, synchronize_session=False)
+        self.session.commit()
 
         # Select all features that are supported by other evidence
         n = self.session.query(Feature.id).\
                         join(FeatureEvidence).\
                         join(Evidence).\
                         filter(Evidence.source != source).\
+                        filter(Evidence.source not in experimental).\
                         filter(Feature.chrom == chrom).\
                         subquery("n")
        

@@ -47,7 +47,7 @@ def load_chrom_data(conn, new, chrom, anno_files, data, index=None):
         logger.exception("Error on {0}".format(chrom))
         raise
 
-def get_chrom_models(conn, chrom, weight, prune=None, keep=[], filter=[]):
+def get_chrom_models(conn, chrom, weight, prune=None, keep=[], filter=[], experimental=[]):
     
     logger = logging.getLogger("pita")
     logger.debug(str(weight)) 
@@ -55,7 +55,7 @@ def get_chrom_models(conn, chrom, weight, prune=None, keep=[], filter=[]):
         db = AnnotationDb(conn=conn)
         
         for ev in filter:
-            db.filter_evidence(chrom, ev) 
+            db.filter_evidence(chrom, ev, experimental) 
         
         mc = DbCollection(db, chrom)
         # Remove long exons with 2 or less evidence sources
