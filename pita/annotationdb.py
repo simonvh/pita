@@ -8,6 +8,7 @@ from pita import db_session
 from pita.db_backend import * 
 from pita.util import read_statistics, get_splice_score
 import yaml
+from pita.io import exons_to_tabix_bed, tabix_overlap
 
 class AnnotationDb():
     def __init__(self, session=None, conn='mysql://pita:@localhost/pita', new=False, index=None):
@@ -61,7 +62,6 @@ class AnnotationDb():
         dump_dict['feature_evidence'] = [[r.feature_id, r.evidence_id] for r in self.session.query(FeatureEvidence)]
 
         return yaml.dump(dump_dict)
-    
     
     def load_yaml(self, fname):
         data = yaml.load(open(fname))
@@ -321,11 +321,37 @@ class AnnotationDb():
         query = query.filter(Feature.end - Feature.start >= l)
         return [e for e in query if len(e.evidences) <= evidence]
     
+    def filter_repeats(self, chrom, rep):
+        """ Flag all exons that overlap with a specified fraction
+        with a repeat track
+        """
+
+        self.logger.warn("Filtering repeats: {} with fraction {}".format(os.path.basename(rep["path"]), rep["fraction"]))
+        
+        exons = self.get_features("exon", chrom)
+        exon_tabix = exons_to_tabix_bed(exons) 
+        
+        overlap_it = tabix_overlap(exon_tabix, rep["tabix"], chrom, rep["fraction"])
+        exon_ids = [int(iv[3]) for iv in overlap_it]
+        
+        chunk = 20
+        for i in range(0, len(exon_ids), chunk):
+            self.logger.warn("Filtering {}".format(exon_ids[i:i + chunk]))
+            query = self.session.query(Feature).\
+                    filter(Feature.id.in_(exon_ids[i:i + chunk])).\
+                    update({Feature.flag:True}, synchronize_session=False)
+            self.session.commit()
+            
+
+        #fobj = TabixIteratorAsFile(tabixfile.fetch(chrom))
+        #for line in fobj:
+        #    print line
+
     def filter_evidence(self, chrom, source, experimental):
         self.logger.debug("Filtering {}".format(source))
-        query = self.session.query(Feature).\
-                update({Feature.flag:False}, synchronize_session=False)
-        self.session.commit()
+        #query = self.session.query(Feature).\
+        #        update({Feature.flag:False}, synchronize_session=False)
+        #self.session.commit()
 
         # Select all features that are supported by other evidence
         n = self.session.query(Feature.id).\

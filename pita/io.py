@@ -1,8 +1,86 @@
 from BCBio import GFF
-from pita.collection import *
+#from pita.collection import *
 import pprint
 import sys
+import os
 import logging 
+from tempfile import NamedTemporaryFile
+import subprocess as sp
+import pysam
+import pybedtools
+
+def _create_tabix(fname, ftype):
+    logger = logging.getLogger("pita")
+    tabix_file = ""
+    logger.info("Creating tabix index for {0}".format(os.path.basename(fname)))
+    logger.debug("Preparing {0} for tabix".format(fname))
+    tmp = NamedTemporaryFile(prefix="pita", delete=False)
+    preset = "gff"
+    if ftype == "bed":
+        cmd = "sort -k1,1 -k2g,2 {0} | grep -v track | grep -v \"^#\" > {1}"
+        preset = "bed"
+    elif ftype in ["gff", "gff3", "gtf3"]:
+        cmd = "sort -k1,1 -k4g,4 {0} | grep -v \"^#\" > {1}"
+
+    # Sort the input file
+    logger.debug(cmd.format(fname, tmp.name))
+    sp.call(cmd.format(fname, tmp.name), shell=True)
+    # Compress using bgzip
+    logger.debug("compressing {0}".format(tmp.name))
+    tabix_file = tmp.name + ".gz"
+    pysam.tabix_compress(tmp.name, tabix_file)
+    tmp.close()
+    # Index (using tabix command line, as pysam.index results in a Segmentation fault
+    logger.debug("indexing {0}".format(tabix_file))
+    sp.call("tabix {0} -p {1}".format(tabix_file, preset), shell=True)
+    return tabix_file
+
+def exons_to_tabix_bed(exons):
+    logger = logging.getLogger("pita")
+    logger.debug("Converting {} exons to tabix bed".format(len(exons)))
+    tmp = NamedTemporaryFile(prefix="pita", delete=False)
+    logger.debug("Temp name {}".format(tmp.name))
+    for exon in sorted(exons, cmp=lambda x,y: cmp([x.chrom, x.start], [y.chrom, y.start])):
+        tmp.write("{}\t{}\t{}\t{}\t{}\t{}\n".format(
+            exon.chrom, exon.start, exon.end, exon.id, "0", exon.strand))
+
+    tmp.close()
+    tabix_fname = _create_tabix(tmp.name, "bed")
+    return tabix_fname
+
+def tabix_overlap(fname1, fname2, chrom, fraction):
+    logger = logging.getLogger("pita")
+    logger.debug("TABIX overlap between {} and {}, {}".format(fname1, fname2, fraction))
+
+    tab1 = pysam.Tabixfile(fname1)
+    tab2 = pysam.Tabixfile(fname2)
+
+    if not ((chrom in tab1.contigs) and (chrom in tab2.contigs)):
+        return
+    
+    fobj1 = TabixIteratorAsFile(tab1.fetch(chrom))
+    tmp1 = NamedTemporaryFile(prefix="pita.", delete=False)
+    for line in fobj1.readlines():
+        tmp1.write("{}\n".format(line.strip()))
+    
+    fobj2 = TabixIteratorAsFile(tab2.fetch(chrom))
+    tmp2 = NamedTemporaryFile(prefix="pita.", delete=False)
+    for line in fobj2.readlines():
+        tmp2.write("{}\n".format(line.strip()))
+
+    tmp1.flush()
+    tmp2.flush()
+
+    b1 = pybedtools.BedTool(tmp1.name)
+    b2 = pybedtools.BedTool(tmp2.name)
+
+    intersect = b1.intersect(b2, f=fraction)
+
+    tmp1.close()
+    tmp2.close()
+    
+    for f in intersect:
+        yield f
 
 def merge_exons(starts, sizes, l=0):
     merge = []
@@ -73,9 +151,6 @@ def read_gff_transcripts(fobj, fname="", min_exons=1, merge=0):
 
     return transcripts
 
-
-
-
 def read_bed_transcripts(fobj, fname="", min_exons=1, merge=0):
     
     # Setup logging
@@ -138,4 +213,13 @@ class TabixIteratorAsFile:
             return self.x.next()
         except StopIteration:
             return None
+
+    def readlines(self):
+        line = self.readline()
+        while line:
+            yield line
+            line = self.readline()
+
+
+
 

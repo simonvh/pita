@@ -47,27 +47,39 @@ def load_chrom_data(conn, new, chrom, anno_files, data, index=None):
         logger.exception("Error on {0}".format(chrom))
         raise
 
-def get_chrom_models(conn, chrom, weight, prune=None, keep=[], filter=[], experimental=[]):
+def get_chrom_models(conn, chrom, weight, repeats=None, prune=None, keep=[], filter=[], experimental=[]):
     
     logger = logging.getLogger("pita")
     logger.debug(str(weight)) 
     try:
         db = AnnotationDb(conn=conn)
         
+        # Filter repeats
+        if repeats:
+            for x in repeats:
+                db.filter_repeats(chrom, x)
+
         for ev in filter:
             db.filter_evidence(chrom, ev, experimental) 
         
         mc = DbCollection(db, chrom)
         # Remove long exons with 2 or less evidence sources
-        mc.filter_long(l=2000, evidence=3)
-        mc.prune_splice_junctions(evidence=3, max_reads=10, keep=keep)
+        
+        if prune and prune.has_key("exons"):
+            l = prune["exons"]["length"]
+            ev = prune["exons"]["evidence"]
+            logger.debug("EXON PRUNE {} {}".format(l, ev))
+            mc.filter_long(l=l, evidence=ev)
+        
+        if prune and prune.has_key("introns"):
+            max_reads = prune["introns"]["max_reads"]
+            ev = prune["introns"]["evidence"]
+            logger.debug("EXON PRUNE {} {}".format(max_reads, ev))
+            mc.prune_splice_junctions(evidence=3, max_reads=10, keep=keep)
+        
         # Remove short introns
         #mc.filter_short_introns()
-        # Prune spurious exon linkages
-        #for p in mc.prune():
-        #    logger.debug("Pruning {0}:{1}-{2}".format(*p))
-
-       
+      
         models = {}
         exons = {}
         logger.info("Calling transcripts for {0}".format(chrom))
@@ -88,71 +100,72 @@ def get_chrom_models(conn, chrom, weight, prune=None, keep=[], filter=[], experi
                 
                 logger.info("Best model: {0} with {1} exons".format(genename, len(best_model)))
                 models[genename] = [genename, best_model]
-#            
-#                for exon in best_model:
-#                    exons[str(exon)] = [exon, genename]
-#       
+            
+                for exon in best_model:
+                    exons[str(exon)] = [exon, genename]
+       
                 for i in range(len(cluster) - 1, -1, -1):
                     if cluster[i][0].start <= best_model[-1].end and cluster[i][-1].end >= best_model[0].start:
                         del cluster[i]    
         discard = {}
-#        if prune:
-#            #logger.debug("Prune: {0}".format(prune))
-#            overlap = get_overlapping_models([x[0] for x in exons.values()])
-#            #logger.debug("{0} overlapping exons".format(len(overlap)))
-#            
-#            gene_count = {}
-#            for e1, e2 in overlap:
-#                gene1 = exons[str(e1)][1]
-#                gene2 = exons[str(e2)][1]
-#                gene_count[gene1] = gene_count.setdefault(gene1, 0) + 1
-#                gene_count[gene2] = gene_count.setdefault(gene2, 0) + 1
-#
-#            for e1, e2 in overlap:
-#                gene1 = exons[str(e1)][1]
-#                gene2 = exons[str(e2)][1]
-#                if not(discard.has_key(gene1) or discard.has_key(gene2)):
-#                    m1 = models[gene1][1]
-#                    m2 = models[gene2][1]
-#                
-#                    loc1,loc2 = sorted([m1, m2], cmp=lambda x,y: cmp(x[0].start, y[0].start))
-#                    l1 = float(loc1[-1].end - loc1[0].start)
-#                    l2 = float(loc2[-1].end - loc2[0].start)
-#                    if loc2[-1].end > loc1[-1].end:
-#                        overlap = float(loc1[-1].end - loc2[0].start)
-#                    else:
-#                        overlap = l2
-#
-#                    #logger.info("Pruning {} vs. {}".format(str(m1),str(m2)))
-#                    logger.info("1: {}, 2: {}, overlap: {}".format(
-#                        l1, l2, overlap))
-#                    logger.info("Gene {} count {}, gene {} count {}".format(
-#                        str(gene1), gene_count[gene1], str(gene2), gene_count[gene2]
-#                        ))
+        if prune:
+            #logger.debug("Prune: {0}".format(prune))
+            overlap = get_overlapping_models([x[0] for x in exons.values()])
+            if len(overlap) > 1:
+                logger.info("{0} overlapping exons".format(len(overlap)))
+#                logger.warn("Overlap: {0}".format(overlap))
+                
+            gene_count = {}
+            for e1, e2 in overlap:
+                gene1 = exons[str(e1)][1]
+                gene2 = exons[str(e2)][1]
+                gene_count[gene1] = gene_count.setdefault(gene1, 0) + 1
+                gene_count[gene2] = gene_count.setdefault(gene2, 0) + 1
+
+            for e1, e2 in overlap:
+                gene1 = exons[str(e1)][1]
+                gene2 = exons[str(e2)][1]
+                if not(discard.has_key(gene1) or discard.has_key(gene2)):
+                    m1 = models[gene1][1]
+                    m2 = models[gene2][1]
+                
+                    loc1,loc2 = sorted([m1, m2], cmp=lambda x,y: cmp(x[0].start, y[0].start))
+                    l1 = float(loc1[-1].end - loc1[0].start)
+                    l2 = float(loc2[-1].end - loc2[0].start)
+                    if loc2[-1].end > loc1[-1].end:
+                        overlap = float(loc1[-1].end - loc2[0].start)
+                    else:
+                        overlap = l2
+
+                    #logger.info("Pruning {} vs. {}".format(str(m1),str(m2)))
+                    #logger.info("1: {}, 2: {}, overlap: {}".format(
+                    #    l1, l2, overlap))
+                    #logger.info("Gene {} count {}, gene {} count {}".format(
+                    #    str(gene1), gene_count[gene1], str(gene2), gene_count[gene2]
+                    #    ))
 #                   
-#                    prune_overlap = 0.1
-#                    if overlap / l1 < prune_overlap and overlap / l2 < prune_overlap:
-#                        logger.info("Not pruning!")
-#                        continue
-#                    
-#                    w1 = 0.0
-#                    w2 = 0.0
-#                    for d in prune:
-#                        logger.debug("Pruning overlap: {0}".format(d))
-#                        tmp_w1 = mc.get_weight(m1, d["name"], d["type"])
-#                        tmp_w2 = mc.get_weight(m2, d["name"], d["type"])
-#                        m = max((tmp_w1, tmp_w2))
-#                        if m > 0:
-#                            w1 += tmp_w1 / max((tmp_w1, tmp_w2))
-#                            w2 += tmp_w2 / max((tmp_w1, tmp_w2))
-#
-#                    if w1 >= w2:
-#                        discard[gene2] = 1
-#                    else:
-#                        discard[gene1] = 1
-#        
-#        del c
-#    
+                    prune_overlap = prune["overlap"]["fraction"]
+                    if overlap / l1 < prune_overlap and overlap / l2 < prune_overlap:
+                        logger.debug("Not pruning because fraction of overlap is too small!")
+                        continue
+                    
+                    w1 = 0.0
+                    w2 = 0.0
+                    for d in prune["overlap"]["weights"]:
+                        logger.debug("Pruning overlap: {0}".format(d))
+                        tmp_w1 = mc.get_weight(m1, d["name"], d["type"])
+                        tmp_w2 = mc.get_weight(m2, d["name"], d["type"])
+                        m = max((tmp_w1, tmp_w2))
+                        if m > 0:
+                            w1 += tmp_w1 / max((tmp_w1, tmp_w2))
+                            w2 += tmp_w2 / max((tmp_w1, tmp_w2))
+
+                    if w1 >= w2:
+                        logger.info("Discarding {}".format(gene2))
+                        discard[gene2] = 1
+                    else:
+                        logger.info("Discarding {}".format(gene1))
+                        discard[gene1] = 1
         
         logger.info("Done calling transcripts for {0}".format(chrom))
         result = [v for m,v in models.items() if not m in discard]

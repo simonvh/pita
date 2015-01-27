@@ -58,6 +58,15 @@ class Feature(Base):
         e.seq = self.seq
         return e
 
+    def overlap(self, exon, strand=True, fraction=False):
+        if strand and self.strand != exon.strand:
+            return 0
+        if exon.start >= self.start and exon.start <= self.end:
+            return self.end - exon.start
+        if exon.end >= self.start and exon.end <= self.end:
+            return exon.end - self.start
+        return 0
+
 class Evidence(Base):
     __tablename__ = "evidence"
     id = Column(Integer, primary_key=True)

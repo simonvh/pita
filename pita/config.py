@@ -5,6 +5,7 @@ import sys
 import pysam
 import subprocess
 from tempfile import NamedTemporaryFile
+from pita.io import _create_tabix
 
 SAMTOOLS = "samtools"
 TSS_FOUND = "v"
@@ -38,8 +39,8 @@ class PitaConfig:
 
         # Prune overlaps
         self.prune = None
-        if self.config.has_key("prune_overlap"):
-            self.prune = self.config["prune_overlap"]
+        if self.config.has_key("prune"):
+            self.prune = self.config["prune"]
         
         self.keep = []
         self.filter = []
@@ -50,6 +51,8 @@ class PitaConfig:
         if self.config.has_key("scoring"):
             self.weight = self.config["scoring"]
 
+        self._parse_repeats()
+       
         # load annotation files
         self._parse_annotation(reannotate)
   
@@ -63,6 +66,17 @@ class PitaConfig:
 
         # check the data files
         self._check_data_files()
+        
+    def _parse_repeats(self):
+        self.repeats = []
+        if self.config.has_key("repeats"):
+            for d in self.config["repeats"]:
+                fname = os.path.join(self.base, d["path"])
+                tabix_fname = _create_tabix(fname, "bed")
+                d["path"] = fname
+                d["tabix"] = tabix_fname
+ 
+            self.repeats.append(d)
 
     def _parse_annotation(self, reannotate=False):
 
@@ -98,29 +112,9 @@ class PitaConfig:
             else:
                 tabix_file = ""
                 if not reannotate:
-                    self.logger.info("Creating tabix index for {0}".format(os.path.basename(fname)))
-                    self.logger.debug("Preparing {0} for tabix".format(fname))
-                    tmp = NamedTemporaryFile(prefix="pita")
-                    preset = "gff"
-                    if t == "bed":
-                        cmd = "sort -k1,1 -k2g,2 {0} | grep -v track | grep -v \"^#\" > {1}"
-                        preset = "bed"
-                    elif t in ["gff", "gff3", "gtf3"]:
-                        cmd = "sort -k1,1 -k4g,4 {0} | grep -v \"^#\" > {1}"
+                    tabix_file = _create_tabix(fname, t)
                     
-                    # Sort the input file
-                    self.logger.debug(cmd.format(fname, tmp.name))
-                    subprocess.call(cmd.format(fname, tmp.name), shell=True)
-                    # Compress using bgzip
-                    self.logger.debug("compressing {0}".format(tmp.name))
-                    tabix_file = tmp.name + ".gz"
-                    pysam.tabix_compress(tmp.name, tabix_file)
-                    tmp.close()
-                    # Index (using tabix command line, as pysam.index results in a Segmentation fault
-                    self.logger.debug("indexing {0}".format(tabix_file))
-                    subprocess.call("tabix {0} -p {1}".format(tabix_file, preset), shell=True)
-                
-                     # Save chromosome names
+                    # Save chromosome names
                     for chrom in pysam.Tabixfile(tabix_file).contigs:
                         self.chroms[chrom] = 1
 

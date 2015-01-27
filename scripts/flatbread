@@ -55,7 +55,7 @@ for f in a:
 config["chromosomes"] = chroms.keys()
 
 # Do all intersections with BED file
-for f in config["annotation"]:
+for f in config["annotation"] + config['repeats']:
     path = f['path']
     sys.stderr.write("Filtering {0}\n".format(path))
     if not os.path.exists(path):
