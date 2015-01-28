@@ -1,16 +1,20 @@
+#!/usr/bin/env python
 from pita.io import *
 from pita.util import bed2exonbed
 from tempfile import NamedTemporaryFile
 import subprocess as sp
 import sys
-import pandas as pd
+import os
 import rpy2.robjects as robjects
 from rpy2.robjects.packages import importr
 import numpy as np
+import argparse
 
 cp = importr('changepoint')
 
-def call_cpt(start, end, strand, data, min_reads=5):
+def call_cpt(start, end, strand, data, min_reads=5, min_log2_ratio=1.5):
+    pt_cutoff = 5
+    
     #sys.stderr.write("{}\t{}\t{}\t{}\n".format(start, end, strand, len(data)))
     counts = np.array(data)
     #print counts 
@@ -24,8 +28,9 @@ def call_cpt(start, end, strand, data, min_reads=5):
         pt = 0
         
     #sys.stderr.write("{}-{}: cpt is {}\n".format(start, end, pt))
-    ratio = np.log2(counts[:pt].mean() / counts[pt:].mean())
-    while pt > 5 and ratio < 1:
+    if pt > pt_cutoff:
+        ratio = np.log2(counts[:pt].mean() / (counts[pt:].mean()) + 0.1)
+    while pt > pt_cutoff and ratio < 1:
         r_counts = robjects.FloatVector(counts[:pt])
         result = cp.cpt_mean(r_counts)
         try: 
@@ -33,9 +38,10 @@ def call_cpt(start, end, strand, data, min_reads=5):
         except:
             pt = 0
         #sys.stderr.write("{}-{}: updating cpt to {}\n".format(start, end, pt))
-        ratio = np.log2(counts[:pt].mean() / counts[pt:].mean())
+        if pt > pt_cutoff:
+            ratio = np.log2(counts[:pt].mean() / (counts[pt:].mean()) + 0.1)
         
-    if pt > 5:
+    if pt > pt_cutoff:
         while pt < len(counts) and counts[pt] >= min_reads:
             pt += 1
             
@@ -44,7 +50,7 @@ def call_cpt(start, end, strand, data, min_reads=5):
         s = np.std(counts[:pt])
         q = np.percentile(counts[:pt], 0.25)
         
-        if m >= min_reads and ratio >= 1.5:
+        if m >= min_reads and ratio >= min_log2_ratio:
             
             if strand == "-":
                 utr_start = int(end) - pt
@@ -97,7 +103,6 @@ def call_utr(inbed, bamfiles):
         
     tmp.flush()
     
-    
     tmpsam = NamedTemporaryFile()
     tmpbam = NamedTemporaryFile()
     sp.call("samtools view -H {} > {}".format(bamfiles[0], tmpsam.name), shell=True)
@@ -139,95 +144,80 @@ def call_utr(inbed, bamfiles):
     tmpbam.close()
     return utr
 
-bamfiles = [
-	"/data/bam/laevis/ueno/Ueno_embryo_egg_20.noseq.bam",
-	"/data/bam/laevis/ueno/Ueno_embryo_st10.5_20.noseq.bam",
-	"/data/bam/laevis/ueno/Ueno_embryo_st12_20.noseq.bam",
-	"/data/bam/laevis/ueno/Ueno_embryo_st15_20.noseq.bam",
-	"/data/bam/laevis/ueno/Ueno_embryo_st20_20.noseq.bam",
-	"/data/bam/laevis/ueno/Ueno_embryo_st25_20.noseq.bam",
-	"/data/bam/laevis/ueno/Ueno_embryo_st30_20.noseq.bam",
-	"/data/bam/laevis/ueno/Ueno_embryo_st35_20.noseq.bam",
-	"/data/bam/laevis/ueno/Ueno_embryo_st40_20.noseq.bam",
-	"/data/bam/laevis/ueno/Ueno_embryo_st8_20.noseq.bam",
-	"/data/bam/laevis/ueno/Ueno_embryo_st9_20.noseq.bam",
-	"/data/bam/laevis/ueno/Ueno_oocyte_I-II.noseq.bam",
-	"/data/bam/laevis/ueno/Ueno_oocyte_III-IV.noseq.bam",
-	"/data/bam/laevis/ueno/Ueno_oocyte_V-VI.noseq.bam",
-	"/data/bam/laevis/ueno/Ueno_st10.5_26.noseq.bam",
-	"/data/bam/laevis/ueno/Ueno_st35_20.noseq.bam",
-	"/data/bam/laevis/ueno/Ueno_tissue_brain.noseq.bam",
-	"/data/bam/laevis/ueno/Ueno_tissue_eye.noseq.bam",
-	"/data/bam/laevis/ueno/Ueno_tissue_heart.noseq.bam",
-	"/data/bam/laevis/ueno/Ueno_tissue_intestine.noseq.bam",
-	"/data/bam/laevis/ueno/Ueno_tissue_kidney.noseq.bam",
-	"/data/bam/laevis/ueno/Ueno_tissue_liver.noseq.bam",
-	"/data/bam/laevis/ueno/Ueno_tissue_lung.noseq.bam",
-	"/data/bam/laevis/ueno/Ueno_tissue_muscle.noseq.bam",
-	"/data/bam/laevis/ueno/Ueno_tissue_ovary.noseq.bam",
-	"/data/bam/laevis/ueno/Ueno_tissue_pancreas.noseq.bam",
-	"/data/bam/laevis/ueno/Ueno_tissue_skin.noseq.bam",
-	"/data/bam/laevis/ueno/Ueno_tissue_spleen.noseq.bam",
-	"/data/bam/laevis/ueno/Ueno_tissue_stomach.noseq.bam",
-	"/data/bam/laevis/ueno/Ueno_tissue_testis.noseq.bam",
-#    "Ueno_embryo_egg_20.noseq.bam",
-#    "Ueno_embryo_st10.5_20.noseq.bam",
-#    "Ueno_embryo_st12_20.noseq.bam",
-#    "Ueno_embryo_st40_20.noseq.bam",
-#    "Ueno_embryo_st35_20.noseq.bam",
-]
-##bamfiles = ["test.bam"]
-
-bedfile = "test_genes.bed" 
-#bedfile = "tmp.bed"
-#bedfile = "/home/simon/prj/laevis/pita/v1.93/pita_v1.93c.bed"
-
-utr = call_utr(bedfile, bamfiles)
-for line in open(bedfile):
+def print_updated_bed(bedfile, bamfiles):
+    utr = call_utr(bedfile, bamfiles)
+    for line in open(bedfile):
+        
+        vals = line.strip().split("\t")
+        start,end = int(vals[1]), int(vals[2])
+        strand = vals[5]
+        name = vals[3]
+        thickstart, thickend = int(vals[6]), int(vals[7])
+        exonsizes = [int(x) for x in vals[10].split(",") if x]
+        exonstarts = [int(x) for x in vals[11].split(",") if x]
+        
+        if utr.has_key(name):
+            sys.stderr.write("Updating {}\n".format(name))
+            utr_start, utr_end = utr[name]
+        
+            if strand == "+":
+                if utr_end < thickend:
+                    sys.stderr.write("Setting end of {} to CDS end\n".format(name))
+                    utr_end = thickend
+                diff = exonsizes[-1] - (utr_end - utr_start)
+                end -= diff
+                
+                exonsizes[-1] -= diff
     
-    vals = line.strip().split("\t")
-    start,end = int(vals[1]), int(vals[2])
-    strand = vals[5]
-    name = vals[3]
-    thickstart, thickend = int(vals[6]), int(vals[7])
-    exonsizes = [int(x) for x in vals[10].split(",") if x]
-    exonstarts = [int(x) for x in vals[11].split(",") if x]
+                vals[2] = end
+                vals[10] = ",".join([str(x) for x in exonsizes] + [""])
+            else:
+                if utr_start > thickstart:
+                    sys.stderr.write("Setting start of {} to CDS start\n".format(name))
+                    utr_start = thickstart
+                diff = exonsizes[0] - (utr_end - utr_start)
+                sys.stderr.write("{} {} {} diff: {}\n".format(utr_start, utr_end, exonsizes[0], diff))
+                start += diff
+                
+                exonstarts = [0] + [x - diff for x in exonstarts[1:]]
+                exonsizes[0] -= diff
     
-    if utr.has_key(name):
-        sys.stderr.write("Updating {}\n".format(name))
-        utr_start, utr_end = utr[name]
+                vals[1] = start
+                vals[10] = ",".join([str(x) for x in exonsizes] + [""])
+                vals[11] = ",".join([str(x) for x in exonstarts] + [""])
     
-        if strand == "+":
-            if utr_end < thickend:
-                sys.stderr.write("Setting end of {} to CDS end\n".format(name))
-                utr_end = thickend
-            diff = exonsizes[-1] - (utr_end - utr_start)
-            end -= diff
-            
-            exonsizes[-1] -= diff
-
-            vals[2] = end
-            vals[10] = ",".join([str(x) for x in exonsizes] + [""])
+            print "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}".format(*vals)
         else:
-            if utr_start > thickstart:
-                sys.stderr.write("Setting start of {} to CDS start\n".format(name))
-                utr_start = thickstart
-            diff = exonsizes[0] - (utr_end - utr_start)
-            sys.stderr.write("{} {} {} diff: {}\n".format(utr_start, utr_end, exonsizes[0], diff))
-            start += diff
-            
-            exonstarts = [0] + [x - diff for x in exonstarts[1:]]
-            exonsizes[0] -= diff
+            print line.strip()
 
-            vals[1] = start
-            vals[10] = ",".join([str(x) for x in exonsizes] + [""])
-            vals[11] = ",".join([str(x) for x in exonstarts] + [""])
+p = argparse.ArgumentParser()
+p.add_argument("-i",
+               dest= "bedfile",
+               help="genes in BED12 format",
+              )
+p.add_argument("-b",
+               dest= "bamfiles",
+               help="list of RNA-seq BAM files (seperated by comma)",
+              )
+args = p.parse_args()
 
-        print "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}".format(*vals)
-    else:
-        print line.strip()
+if not args.bedfile or not args.bamfiles:
+    p.print_help()
+    sys.exit()
 
-#print utr
+bedfile = args.bedfile
+bamfiles = args.bamfiles.split(",")
 
- #rpy2
-##print df[df["name"] == "JGIv7b.000034527:1028752-1047490_"]["count"]
+for bamfile in bamfiles:
+    if not os.path.exists(bamfile):
+        sys.stderr.write("BAM file {} does not exist.\n".format(bamfile))
+        sys.exit(1)    
+    if not os.path.exists(bamfile + ".bai"):
+        sys.stderr.write("index file {}.bai does not exist.\n".format(bamfile))
+        sys.exit(1)
+
+if not os.path.exists(bedfile):
+    sys.stderr.write("BED file {} does not exist.\n".format(bedfile))
+    sys.exit(1)
+
+print_updated_bed(bedfile, bamfiles)
