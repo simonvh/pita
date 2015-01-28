@@ -1,57 +1,46 @@
-#!/usr/bin/env python
-from pita.io import *
+from pita.r_cpt import cpt
 from pita.util import bed2exonbed
+from pita.io import read_bed_transcripts
 from tempfile import NamedTemporaryFile
+import pybedtools
 import subprocess as sp
 import sys
 import os
-import rpy2.robjects as robjects
-from rpy2.robjects.packages import importr
 import numpy as np
-import argparse
 
-cp = importr('changepoint')
-
-def call_cpt(start, end, strand, data, min_reads=5, min_log2_ratio=1.5):
-    pt_cutoff = 5
+def call_cpt(start, end, strand, data, min_reads=5, min_log2_ratio=1.5, downstream=True):
+    """
+    Determine UTR location from basepair-resolution coverage vector of reads.
+    Return tuple of utr_start and utr_end if changepoint is found.
+    """
     
-    #sys.stderr.write("{}\t{}\t{}\t{}\n".format(start, end, strand, len(data)))
+    sys.stderr.write("{} {} {}\n".format(start, end, strand))
+    pt_cutoff = 5
     counts = np.array(data)
-    #print counts 
+    
+    # Do calculations on reverse array if gene is on the - strand
     if strand == "-":
         counts = counts[::-1]
-    r_counts = robjects.FloatVector([float(c) for c in counts])
-    result = cp.cpt_mean(r_counts)
-    try:
-        pt = int(cp.cpts(result)[0])
-    except:
-        pt = 0
-        
-    #sys.stderr.write("{}-{}: cpt is {}\n".format(start, end, pt))
-    if pt > pt_cutoff:
-        ratio = np.log2(counts[:pt].mean() / (counts[pt:].mean()) + 0.1)
+    
+    pt = len(counts)
+    ratio = 0
     while pt > pt_cutoff and ratio < 1:
-        r_counts = robjects.FloatVector(counts[:pt])
-        result = cp.cpt_mean(r_counts)
-        try: 
-            pt = int(cp.cpts(result)[0])
-        except:
-            pt = 0
-        #sys.stderr.write("{}-{}: updating cpt to {}\n".format(start, end, pt))
+        sys.stderr.write("cpt {}\n".format(pt))
+        pt = cpt(counts[:pt])
         if pt > pt_cutoff:
             ratio = np.log2(counts[:pt].mean() / (counts[pt:].mean()) + 0.1)
         
     if pt > pt_cutoff:
+        # Add to the changepoint while the number of reads is above min_reads
         while pt < len(counts) and counts[pt] >= min_reads:
             pt += 1
             
         m = counts[:pt].mean()
-        md = np.median(counts[:pt])
-        s = np.std(counts[:pt])
-        q = np.percentile(counts[:pt], 0.25)
+        #md = np.median(counts[:pt])
+        #s = np.std(counts[:pt])
+        #q = np.percentile(counts[:pt], 0.25)
         
         if m >= min_reads and ratio >= min_log2_ratio:
-            
             if strand == "-":
                 utr_start = int(end) - pt
                 utr_end = int(end)
@@ -62,14 +51,22 @@ def call_cpt(start, end, strand, data, min_reads=5, min_log2_ratio=1.5):
             return utr_start, utr_end
            
 def call_utr(inbed, bamfiles):
+    """
+    Call 3' UTR for all genes in a BED12 file based on RNA-seq reads 
+    in BAM files.
+    """
+    
+    # Load genes in BED file
+    transcripts = read_bed_transcripts(open(inbed))
+    td = dict([(t[0].split("_")[1] + "_", t[2]) for t in transcripts])
+
+    # Create a BED6 file with exons, used to determine UTR boundaries 
     sys.stderr.write("Preparing temporary BED files\n")
     exonbed = NamedTemporaryFile()
     bed2exonbed(inbed, exonbed.name)
 
-    transcripts = read_bed_transcripts(open(bedfile))
-    td = dict([(t[0].split("_")[1] + "_", t[2]) for t in transcripts])
-    
-    genes = pybedtools.BedTool(bedfile)
+    # Determine boundaries using bedtools
+    genes = pybedtools.BedTool(inbed)
     exons = pybedtools.BedTool(exonbed.name)
     
     tmp = NamedTemporaryFile()
@@ -78,6 +75,8 @@ def call_utr(inbed, bamfiles):
     sys.stderr.write("Determining gene boundaries determined by closest gene\n")
     for x in genes.closest(exons, D="a", io=True, iu=True):
         transcript = td[x[3]]
+        
+        # Extend to closest exon or EXTEND, whichever is closer
         extend = EXTEND
         if (int(x[-1]) >= 0) and (int(x[-1]) < extend):
             extend = int(x[-1])
@@ -105,14 +104,23 @@ def call_utr(inbed, bamfiles):
     
     tmpsam = NamedTemporaryFile()
     tmpbam = NamedTemporaryFile()
+    
+    # Retrieve header from first BAM file
     sp.call("samtools view -H {} > {}".format(bamfiles[0], tmpsam.name), shell=True)
+    
+    # Filter all BAM files for the specific regions. This runs much faster
+    # then running bedtools coverage on all individual BAM files
     cmd = "samtools view -L {} {} >> {}"
     sys.stderr.write("Merging bam files\n")
     for bamfile in bamfiles:
         sp.call(cmd.format(tmp.name, bamfile, tmpsam.name), shell=True)
+    
+    # Created sorted and index bam
     cmd = "samtools view -Sb {} | samtools sort - {}"
     sp.call(cmd.format(tmpsam.name, tmpbam.name), shell=True)
     sp.call("samtools index {}.bam".format(tmpbam.name), shell=True)
+    
+    # Close and remove temporary SAM file
     tmpsam.close()
     
     sys.stderr.write("Calculating coverage\n")
@@ -190,34 +198,3 @@ def print_updated_bed(bedfile, bamfiles):
         else:
             print line.strip()
 
-p = argparse.ArgumentParser()
-p.add_argument("-i",
-               dest= "bedfile",
-               help="genes in BED12 format",
-              )
-p.add_argument("-b",
-               dest= "bamfiles",
-               help="list of RNA-seq BAM files (seperated by comma)",
-              )
-args = p.parse_args()
-
-if not args.bedfile or not args.bamfiles:
-    p.print_help()
-    sys.exit()
-
-bedfile = args.bedfile
-bamfiles = args.bamfiles.split(",")
-
-for bamfile in bamfiles:
-    if not os.path.exists(bamfile):
-        sys.stderr.write("BAM file {} does not exist.\n".format(bamfile))
-        sys.exit(1)    
-    if not os.path.exists(bamfile + ".bai"):
-        sys.stderr.write("index file {}.bai does not exist.\n".format(bamfile))
-        sys.exit(1)
-
-if not os.path.exists(bedfile):
-    sys.stderr.write("BED file {} does not exist.\n".format(bedfile))
-    sys.exit(1)
-
-print_updated_bed(bedfile, bamfiles)
