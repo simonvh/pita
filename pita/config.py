@@ -67,6 +67,9 @@ class PitaConfig:
         # check the data files
         self._check_data_files()
         
+        # output option
+        self.min_protein_size = 20 
+    
     def _parse_repeats(self):
         self.repeats = []
         if self.config.has_key("repeats"):
