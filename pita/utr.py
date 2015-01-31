@@ -8,7 +8,7 @@ import sys
 import os
 import numpy as np
 
-def call_cpt(start, end, strand, data, min_reads=5, min_log2_ratio=1.5, downstream=True):
+def call_cpt(start, end, strand, data, min_reads=5, min_log2_ratio=1.5, upstream=False):
     """
     Determine UTR location from basepair-resolution coverage vector of reads.
     Return tuple of utr_start and utr_end if changepoint is found.
@@ -18,8 +18,9 @@ def call_cpt(start, end, strand, data, min_reads=5, min_log2_ratio=1.5, downstre
     pt_cutoff = 5
     counts = np.array(data)
     
-    # Do calculations on reverse array if gene is on the - strand
-    if strand == "-":
+    # Do calculations on reverse array if gene is on the - strand or
+    # when predicting 5' UTR
+    if (upstream an strand == "+") or strand == "-":
         counts = counts[::-1]
     
     pt = len(counts)
@@ -36,21 +37,17 @@ def call_cpt(start, end, strand, data, min_reads=5, min_log2_ratio=1.5, downstre
             pt += 1
             
         m = counts[:pt].mean()
-        #md = np.median(counts[:pt])
-        #s = np.std(counts[:pt])
-        #q = np.percentile(counts[:pt], 0.25)
-        
         if m >= min_reads and ratio >= min_log2_ratio:
-            if strand == "-":
+            if (upstream and strand == "+") or strand == "-":
                 utr_start = int(end) - pt
                 utr_end = int(end)
             else:
                 utr_start = int(start)
                 utr_end = int(start) + pt
     
-            return utr_start, utr_end
+            return int(utr_start), int(utr_end)
            
-def call_utr(inbed, bamfiles):
+def call_utr(inbed, bamfiles, utr5=False, utr3=True):
     """
     Call 3' UTR for all genes in a BED12 file based on RNA-seq reads 
     in BAM files.
@@ -155,7 +152,10 @@ def call_utr(inbed, bamfiles):
 def print_updated_bed(bedfile, bamfiles):
     utr = call_utr(bedfile, bamfiles)
     for line in open(bedfile):
-        
+        if line.startswith("track") or line[0] == "#":
+            print line.strip()
+            continue
+
         vals = line.strip().split("\t")
         start,end = int(vals[1]), int(vals[2])
         strand = vals[5]
