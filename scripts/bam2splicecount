@@ -1,0 +1,43 @@
+#!/usr/bin/env python
+#JGIv7b.000209344	345095	349191	JGIv7b.000209344:345095-349191_VV	600	-	345095	349191	0,0,0	3	1061,183,186,	0,1544,3910,
+import sys
+import subprocess as sp
+
+if len(sys.argv) != 2:
+    sys.stderr.write("Usage:\nbam2splicecount <bamfile>\n\n")
+    sys.stderr.write("Extract number of splice junctions from a BAM file.\n")
+    sys.stderr.write("Can consume a lot of memory dependent on the size of the BAM file.\n")
+    sys.exit(1)
+
+cmd = "samtools view -h {} | awk '($6 ~ /N/ || $1 ~ /^@/)' | samtools view -Sbu - | bedtools bamtobed -bed12"
+
+p = sp.Popen(cmd.format(sys.argv[1]), shell=True, stdout=sp.PIPE)
+splice_count = {}
+for line in p.stdout.readlines():
+    if line.startswith("track") or line[0] == "#":
+        continue
+    vals = line.strip().split("\t")
+    start,end = int(vals[1]), int(vals[2])
+    strand = vals[5]
+    exon_sizes = [int(x) for x in vals[10].strip(",").split(",")[:]]
+    exon_starts = [int(x) for x in vals[11].strip(",").split(",")[:]]
+    
+    for estart1, estart2, esize in zip(exon_starts[:-1], exon_starts[1:], exon_sizes[:-1]):
+        sstart = start + estart1 + esize 
+        send = start + estart2
+        if sstart > send:
+            sys.stderr.write("Skipping {0}: {1} - {2}\n".format(vals[3], sstart, send))
+        else:
+            splice_count.setdefault((vals[0],sstart, send,strand), 0)
+            splice_count[(vals[0],sstart, send,strand)] += 1
+            
+for (chrom, start, end, strand), count in splice_count.items():
+    print "{0}\t{1}\t{2}\t{3}\t{4}\t{5}".format(
+                                                chrom,
+                                                start,
+                                                end,
+                                                count,
+                                                0,
+                                                strand,
+                                                )
+        

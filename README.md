@@ -30,3 +30,4 @@ Installation
     cd pita
     python setup.py test
     sudo python setup.py install
+

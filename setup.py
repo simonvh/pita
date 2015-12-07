@@ -2,7 +2,7 @@ from distutils.core import setup
 from setuptools.command.test import test as TestCommand
 import sys
 
-VERSION = "1.7"
+VERSION = "1.72"
 DESCRIPTION = """
 pita - pita improves transcript annotation
 """
@@ -29,6 +29,7 @@ setup (name = 'pita',
         ],
         scripts=[
             "scripts/pita",
+            "scripts/pita_utr",
             "scripts/bed12togff3",
             "scripts/gff3tobed12",
             "scripts/flatbread",
@@ -37,8 +38,9 @@ setup (name = 'pita',
         data_files=[],
         tests_require=['pytest'],
         install_requires=[
+                        "SQLAlchemy",
                         "gimmemotifs",
-                        "pysam >= 0.7.4",
+                        "pysam < 0.8",
                         "pyyaml",
                         "HTSeq",
                         "bcbio-gff",

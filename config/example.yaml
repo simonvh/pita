@@ -1,5 +1,17 @@
 # Path to data files. Data files can be specified relative to this path
 data_path: /home/simon/prj/laevis/annotation/XENLA_JGI7b/pita/data
+genome: /usr/share/genome/XENLA_JGIv7b
+
+# Database connection details
+# 
+# For file-based sqlite connection:
+# database: sqlite:///database.db
+#
+# For mysql: mysql://user:password@server/database
+# For example:
+# database: mysql://pita:@localhost/pita
+
+database: sqlite:///pita_database.db
 
 # Comment to process all chromosomes
 chromosomes:

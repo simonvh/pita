@@ -143,7 +143,7 @@ def test_long_exon_filter(t1, t2):
 def short_intron_track():
     return "tests/data/short_introns.bed" 
 
-def test_long_exon_filter(short_intron_track):
+def test_short_intron_filter(short_intron_track):
     from pita.collection import Collection
     from pita.io import read_bed_transcripts
     from pita.util import model_to_bed

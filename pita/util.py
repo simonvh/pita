@@ -4,6 +4,11 @@ from Bio.Seq import Seq
 from Bio.Alphabet import IUPAC
 import re
 import sys
+import subprocess as sp
+from tempfile import NamedTemporaryFile
+import logging
+
+logger = logging.getLogger('pita')
 
 def read_statistics(fname, rmrepeat=False, rmdup=False, mapped=False):
     """ Count number of reads in BAM file.
@@ -44,9 +49,11 @@ def exons_to_seq(exons):
         exons = exons[::-1]
 
     for e in exons:
-        if not e.seq:
-            raise Exception, "exon has no sequence"
-        seq = "".join((seq, e.seq))
+        if e.seq:
+            seq = "".join((seq, e.seq))
+        else:
+            logger.error("exon {} has no sequence".format(e))
+
     return seq
 
 def longest_orf(seq, do_prot=False):
@@ -143,6 +150,36 @@ def model_to_bed(exons, genename=None):
 
 
 
+def get_splice_score(a, s_type=5):
+    if not s_type in [3,5]:
+        raise Exception("Invalid splice type {}, should be 3 or 5".format(s_type))
+    maxent = "/home/simon/dwn/fordownload"
+    tmp = NamedTemporaryFile()
+    for name,seq in a:
+        tmp.write(">{}\n{}\n".format(name,seq))
+    tmp.flush()
+    cmd = "perl score{}.pl {}".format(s_type, tmp.name)
+    p = sp.Popen(cmd, shell=True, cwd=maxent, stdout=sp.PIPE)
+    score = 0
+    for line in p.stdout.readlines():
+        vals = line.strip().split("\t")
+        if len(vals) > 1:
+            score += float(vals[-1])
+    return score
+
+def bed2exonbed(inbed, outbed):
+    with open(outbed, "w") as out:
+        for line in open(inbed):
+            if line.startswith("#") or line.startswith("track"):
+                out.write(line)
+            else:
+                vals = line.strip().split("\t")
+        
+                exonsizes = [int(x) for x in vals[10].split(",") if x]
+                exonstarts = [int(x) for x in vals[11].split(",") if x]
+                for exon_start, exon_size in zip(exonstarts, exonsizes):
+                    out.write("%s\t%s\t%s\t%s\t%s\t%s\n" % (vals[0], int(vals[1]) + exon_start, int(vals[1]) + exon_start + exon_size, vals[3], vals[4], vals[5]))
+    
 
 if __name__ == "__main__":
     print longest_orf("CAGGAAGTCACGGAGCGCGGGATTTTTCAATCAGACTGATGAACAGATGAATACGACGAAGAGCATGGAGGCAATTCTGGAATTTTTTGTGCTGTGTGATCCAAAGAAGCGGCCAGTCAGACTGAACCGGTTGCCTTCTGTACCAAAGGATGCACTGTGTTATTCTGCCCTGCTGCCATCTCCTCTACCATCCCAGCTGTTGATCTTTGGCTTAGGTGACTGGTCAGGGTTATCTGGAGGAAGCACAGTAGAAGTGAAATTGGAAGGAAGTGGAACCAAAGAGCACAGACTGGGAACGCTGACTCCTGAGTCAAGATGCTTCCTGTGGGAATCTGACCAAAACCCCGACACCAGCATAATGTTACAAGAGGGAAAGCTGCATATCTGCATGTCGGTTAAAGGGCAGGTCAATATTAATTCTACTAACAGGAAAAAAGAGCATGGAAAGCGCAAGAGAATTAAAGAGGAAGAGGAAAATGTTTGTCCAAATAGTGGACATGTAAAAGTGCCTGCTCAAAAACAGAAGAACAGTAGTCCTAAGAGTCCAGCACCAGCAAAGCAACTTGCTCATTCTAAGGCCTTTTTAGCAGCACCAGCTGTGCCAACTGCACGCTGGGGTCAAGCGCTCTGTCCTGTCAACTCTGAGACAGTAATCTTGATTGGTGGACAGGGAACACGTATGCAGTTCTGTAAGGATTCCATGTGGAAACTGAATACAGATAGGAGCACATGGACTCCAGCTGAGGCATTGGCAGATGGCCTTTCACCAGAAGCTCGTACTGGGCACACAGCAACCTTCGATCCTGAGAACAACCGTATTTATGTGTTTGGAGGTTCTAAGAACAGAAAATGGTTCAATGATGTACATATTTTGGACATTGAGGCCTGGCGATGGAGGAGCGTGGAAGTAAGTAAACTAAGTAGTTGA")
