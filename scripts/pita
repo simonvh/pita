@@ -90,7 +90,10 @@ def print_output(genename, exons, lock=None):
     sys.stdout.flush()
     # Print sequences
     cdna_fh.write(">{0}\n{1}\n".format(genename, exons_to_seq(exons)))
-    protein_fh.write(">{0}\n{1}\n".format(genename, longest_orf(exons, do_prot=True)))
+    
+    pep = longest_orf(exons, do_prot=True)
+    if len(pep) >= config.min_protein_size:
+        protein_fh.write(">{0}\n{1}\n".format(genename, pep))
     cdna_fh.flush()
     protein_fh.flush()
     if lock:
