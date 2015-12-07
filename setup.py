@@ -29,6 +29,7 @@ setup (name = 'pita',
         ],
         scripts=[
             "scripts/pita",
+            "scripts/pita_utr",
             "scripts/bed12togff3",
             "scripts/gff3tobed12",
             "scripts/flatbread",

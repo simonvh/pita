@@ -48,7 +48,7 @@ def call_cpt(start, end, strand, data, min_reads=5, min_log2_ratio=1.5, downstre
                 utr_start = int(start)
                 utr_end = int(start) + pt
     
-            return utr_start, utr_end
+            return int(utr_start), int(utr_end)
            
 def call_utr(inbed, bamfiles):
     """
@@ -58,18 +58,23 @@ def call_utr(inbed, bamfiles):
     
     # Load genes in BED file
     transcripts = read_bed_transcripts(open(inbed))
+    
+    # No genes
+    if len(transcripts) == 0:
+        return 
+
     td = dict([(t[0].split("_")[1] + "_", t[2]) for t in transcripts])
 
     # Create a BED6 file with exons, used to determine UTR boundaries 
     sys.stderr.write("Preparing temporary BED files\n")
-    exonbed = NamedTemporaryFile()
+    exonbed = NamedTemporaryFile(prefix="pita.", suffix=".bed")
     bed2exonbed(inbed, exonbed.name)
 
     # Determine boundaries using bedtools
     genes = pybedtools.BedTool(inbed)
     exons = pybedtools.BedTool(exonbed.name)
     
-    tmp = NamedTemporaryFile()
+    tmp = NamedTemporaryFile(prefix="pita.", suffix=".bed")
     
     EXTEND = 10000
     sys.stderr.write("Determining gene boundaries determined by closest gene\n")
@@ -102,21 +107,29 @@ def call_utr(inbed, bamfiles):
         
     tmp.flush()
     
-    tmpsam = NamedTemporaryFile()
-    tmpbam = NamedTemporaryFile()
+    tmpsam = NamedTemporaryFile(prefix="pita.", suffix=".sam")
+    tmpbam = NamedTemporaryFile(prefix="pita.")
     
     # Retrieve header from first BAM file
     sp.call("samtools view -H {} > {}".format(bamfiles[0], tmpsam.name), shell=True)
     
     # Filter all BAM files for the specific regions. This runs much faster
     # then running bedtools coverage on all individual BAM files
-    cmd = "samtools view -L {} {} >> {}"
+    tmp_check = NamedTemporaryFile(prefix="pita.", suffix=".bam")
+    cmd = "samtools view -L {} {} > {}"
     sys.stderr.write("Merging bam files\n")
     for bamfile in bamfiles:
-        sp.call(cmd.format(tmp.name, bamfile, tmpsam.name), shell=True)
+        try:
+            sp.check_call(cmd.format(tmp.name, bamfile, tmp_check.name), shell=True)
+            sp.call("cat {} >> {}".format(tmp_check.name, tmpsam.name), shell=True)
+        except sp.CalledProcessError as e:
+            sys.stderr.write("Error in file {}, skipping:\n".format(bamfile))
+            sys.stderr.write("{}\n".format(e))
     
+    tmp_check.close()
+
     # Created sorted and index bam
-    cmd = "samtools view -Sb {} | samtools sort - {}"
+    cmd = "samtools view -Sb {} | samtools sort -m 6G - {}"
     sp.call(cmd.format(tmpsam.name, tmpbam.name), shell=True)
     sp.call("samtools index {}.bam".format(tmpbam.name), shell=True)
     
@@ -144,18 +157,27 @@ def call_utr(inbed, bamfiles):
             data = []
             current = [vals[3], int(vals[1]), int(vals[2]), vals[5]]
         data.append(int(vals[7]))
-    result = call_cpt(current[1], current[2], current[3], data, len(bamfiles))
-    #print result
-    if result:
-        utr[current[0]] = result
+    if current[0]:
+        result = call_cpt(current[1], current[2], current[3], data, len(bamfiles))
+        if result:
+            utr[current[0]] = result
+    
+    for fname in [tmpbam.name + ".bam", tmpbam.name + ".bam.bai"]:
+        if os.path.exists(fname):
+            os.unlink(fname)
     
     tmpbam.close()
+    tmp.close()
+    
+    
     return utr
 
 def print_updated_bed(bedfile, bamfiles):
     utr = call_utr(bedfile, bamfiles)
     for line in open(bedfile):
-        
+        if line.startswith("track") or line[0] == "#":
+            print line.strip()
+            continue
         vals = line.strip().split("\t")
         start,end = int(vals[1]), int(vals[2])
         strand = vals[5]
