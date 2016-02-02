@@ -46,7 +46,6 @@ setup (name = 'pita',
                         "bcbio-gff",
                         "biopython",
                         "networkx >=1.9,<1.10",
-                        'A>=1,<2'
                         "numpy",
                         ],
         cmdclass = {'test': PyTest},
