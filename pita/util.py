@@ -153,7 +153,7 @@ def model_to_bed(exons, genename=None):
 def get_splice_score(a, s_type=5):
     if not s_type in [3,5]:
         raise Exception("Invalid splice type {}, should be 3 or 5".format(s_type))
-    maxent = "/home/jsteenbrugge/dwn/fordownload"
+    maxent = "~/dwn/fordownload"
     tmp = NamedTemporaryFile()
     for name,seq in a:
         tmp.write(">{}\n{}\n".format(name,seq))
