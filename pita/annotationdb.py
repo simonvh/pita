@@ -123,7 +123,7 @@ class AnnotationDb():
                 [dict(zip(t, row)) for row in data['feature_evidence']]
                 )
     
-    def add_transcript(self, name, source, exons):
+    def add_transcript(self, name, source, exons, maxentpath):
         """
         Add a transcript to the database
         """
@@ -199,8 +199,8 @@ class AnnotationDb():
                     f = ["{}_{}".format(name, i + 1), seqs[i][:23]]
                     splice_acceptors.append(f)
         
-        donor_score = get_splice_score(splice_donors, 5)
-        acceptor_score = get_splice_score(splice_acceptors, 3)
+        donor_score = get_splice_score(splice_donors, 5, maxentpath)
+        acceptor_score = get_splice_score(splice_acceptors, 3, maxentpath)
         if donor_score + acceptor_score < 0:
             self.logger.warning("Skipping {}, splicing not OK!".format(name))
             self.session.rollback()

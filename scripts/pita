@@ -119,7 +119,7 @@ def annotate_chrom(chrom, conn, q, anno_files, data, repeats, weight, prune, kee
             new = True
     logger.info("Chromosome {0} started".format(chrom))
     if not reannotate:
-        load_chrom_data(conn, new, chrom, anno_files, data, index)
+        load_chrom_data(conn, new, chrom, anno_files, data, index, config.maxentpath)
     for genename, best_exons in get_chrom_models(conn, chrom, weight, repeats, prune, keep, filter, experimental):
         #results.append([genename, best_exons])
         logger.debug("Putting {0} in print queue".format(genename))
@@ -159,7 +159,8 @@ if threads > 1:
 else:
     for chrom in chroms:
         if not args.reannotate:
-            load_chrom_data(config.db_conn, True, chrom, config.anno_files, config.data, index)
+            load_chrom_data(config.db_conn, True, chrom, config.anno_files, config.data, 
+index, config.maxentpath)
         for genename, best_exons in get_chrom_models(config.db_conn, chrom, config.weight, repeats=config.repeats, prune=config.prune, keep=config.keep, filter=config.filter, experimental=config.experimental):
             print_output(genename, best_exons)
 

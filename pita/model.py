@@ -9,7 +9,7 @@ import sys
 from tempfile import NamedTemporaryFile
 from pita.config import SEP
 
-def load_chrom_data(conn, new, chrom, anno_files, data, index=None):
+def load_chrom_data(conn, new, chrom, anno_files, data, index=None, maxentpath):
     logger = logging.getLogger("pita")
     
     try:
@@ -28,7 +28,7 @@ def load_chrom_data(conn, new, chrom, anno_files, data, index=None):
                 elif ftype in ["gff", "gtf", "gff3"]:
                     it = read_gff_transcripts(fobj, fname, min_exons=min_exons, merge=10)
                 for tname, source, exons in it:
-                    db.add_transcript("{0}{1}{2}".format(name, SEP, tname), source, exons)
+                    db.add_transcript("{0}{1}{2}".format(name, SEP, tname), source, exons, maxentpath)
                 del fobj    
             tabixfile.close()
             del tabixfile
