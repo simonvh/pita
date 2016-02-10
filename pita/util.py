@@ -150,7 +150,7 @@ def model_to_bed(exons, genename=None):
 
 
 
-def get_splice_score(a, s_type=5, maxentpath):
+def get_splice_score(a, maxentpath, s_type=5):
     if not s_type in [3,5]:
         raise Exception("Invalid splice type {}, should be 3 or 5".format(s_type))
     maxent = maxentpath
