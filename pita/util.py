@@ -1,8 +1,10 @@
 from pita.config import SAMTOOLS
+from pita.config import PitaConfig
 from subprocess import Popen, PIPE
 from Bio.Seq import Seq
 from Bio.Alphabet import IUPAC
 import re
+from scripts.pita import configfile
 import sys
 import subprocess as sp
 from tempfile import NamedTemporaryFile
@@ -154,6 +156,7 @@ def get_splice_score(a, maxentpath, s_type=5):
     if not s_type in [3,5]:
         raise Exception("Invalid splice type {}, should be 3 or 5".format(s_type))
     maxent = maxentpath
+    getMaxentPath() #for testing
     tmp = NamedTemporaryFile()
     for name,seq in a:
         tmp.write(">{}\n{}\n".format(name,seq))
@@ -166,6 +169,10 @@ def get_splice_score(a, maxentpath, s_type=5):
         if len(vals) > 1:
             score += float(vals[-1])
     return score
+
+def getMaxentPath():
+	var = PitaConfig.maxentpath
+	raise Exception("this is a test: " +var)
 
 def bed2exonbed(inbed, outbed):
     with open(outbed, "w") as out:
