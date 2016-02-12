@@ -47,7 +47,7 @@ class PitaConfig:
         self.experimental = []
 	
 	# MaxEnt directory
-	self.maxentpath =""
+	self.maxentpath ="lalalala" 
 	if self.config.has_key("maxent"):
 		self.maxentpath = self.config["maxent"]
 
