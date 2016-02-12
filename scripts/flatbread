@@ -121,4 +121,4 @@ for f in config['data']:
 config["data_path"] = os.path.abspath(outname)
 
 with open("{0}.yaml".format(outname), "w") as f:
-    f.write(yaml.dump(config))
+    f.write(yaml.safe_dump(config))
