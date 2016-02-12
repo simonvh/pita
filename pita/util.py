@@ -4,7 +4,6 @@ from subprocess import Popen, PIPE
 from Bio.Seq import Seq
 from Bio.Alphabet import IUPAC
 import re
-from scripts.pita import configfile
 import sys
 import subprocess as sp
 from tempfile import NamedTemporaryFile
