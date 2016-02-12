@@ -155,7 +155,6 @@ def get_splice_score(a, maxentpath, s_type=5):
     if not s_type in [3,5]:
         raise Exception("Invalid splice type {}, should be 3 or 5".format(s_type))
     maxent = maxentpath
-    print("TESTING____"+maxent)
     tmp = NamedTemporaryFile()
     for name,seq in a:
         tmp.write(">{}\n{}\n".format(name,seq))
