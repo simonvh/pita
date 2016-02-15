@@ -180,15 +180,13 @@ def getMaxPath():
 	p.add_argument("-c",
                	dest= "configfile",
                	default = DEFAULT_CONFIG,
-               	help="configuration file (default: 
-		{0})".format(DEFAULT_CONFIG)
+               	help="configuration file (default:{0})".format(DEFAULT_CONFIG)
               )
 	p.add_argument("-t",
                	dest= "threads",
                	default = DEFAULT_THREADS,
                	type = int,
-               	help="number of threads (default: 
-		{0})".format(DEFAULT_THREADS)
+               	help="number of threads (default:{0})".format(DEFAULT_THREADS)
               )
 	p.add_argument("-i",
                	dest= "index_dir",
