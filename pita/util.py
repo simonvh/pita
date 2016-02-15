@@ -174,22 +174,51 @@ def get_splice_score(a, s_type=5):
 
 #parse config file for the maxentPath
 def getMaxPath():
+	DEFAULT_CONFIG = "pita.yaml"
+	DEFAULT_THREADS = 4
 	p = argparse.ArgumentParser()
 	p.add_argument("-c",
-               dest= "configfile",
-               help="configuration file"
+               	dest= "configfile",
+               	default = DEFAULT_CONFIG,
+               	help="configuration file (default: 
+		{0})".format(DEFAULT_CONFIG)
               )
+	p.add_argument("-t",
+               	dest= "threads",
+               	default = DEFAULT_THREADS,
+               	type = int,
+               	help="number of threads (default: 
+		{0})".format(DEFAULT_THREADS)
+              )
+	p.add_argument("-i",
+               	dest= "index_dir",
+               	default = None,
+               	help="genome index dir"
+              )
+	p.add_argument("-y",
+               	dest= "yaml_file",
+               	default = None,
+               	help="dump database to yaml file"
+              )
+	p.add_argument("-d",
+               	dest= "debug_level",
+               	default = "INFO",
+               	help="Debug level"
+              )
+	p.add_argument("-r",
+ 		dest ="reannotate",
+                default = False,
+                action = "store_true",
+                help="reannotate using existing database"
+                )
 	args = p.parse_args()
+	configfile = args.configfile
+	if not os.path.exists(configfile):
+		print("Configfile not found")
+		sys.exit()
+	config = PitaConfig(configfile,args.reannotate)
 
-        configfile = args.configfile
-        if not (configfile):
-                p.print_help()
-                sys.exit()
-        f = open(configfile)
-        conf = yaml.load(f)
-	print(conf)
-        chr = conf['maxent']
-	return chr
+        return config.maxentpath
 
 def bed2exonbed(inbed, outbed):
     with open(outbed, "w") as out:
