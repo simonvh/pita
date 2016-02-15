@@ -15,9 +15,9 @@ def read_statistics(fname, rmrepeat=False, rmdup=False, mapped=False):
     """ Count number of reads in BAM file.
     Optional arguments rmrepeat and rmdup do nothing for now
     """
-    
+
     cmd = "{0} idxstats {1} | awk '{{total += $3 + $4}} END {{print total}}'"
-    
+
     p = Popen(
              cmd.format(SAMTOOLS, fname), 
              shell=True, 
@@ -26,7 +26,7 @@ def read_statistics(fname, rmrepeat=False, rmdup=False, mapped=False):
              )
 
     stdout,stderr = p.communicate()
-    
+
     n = int(stdout.strip())
 
     return n
@@ -34,7 +34,7 @@ def read_statistics(fname, rmrepeat=False, rmdup=False, mapped=False):
 def get_overlapping_models(exons):
     overlap = []
     sorted_exons = sorted(exons, cmp=lambda x,y: cmp(x.start, y.start))
-    
+
     for i, exon in enumerate(sorted_exons):
         j = i + 1
         while j < len(sorted_exons) and sorted_exons[j].start <= exon.end:
@@ -60,21 +60,21 @@ def exons_to_seq(exons):
 def longest_orf(seq, do_prot=False):
     if type(seq) == type([]):
         seq = exons_to_seq(seq)
-    
+
     dna = Seq(seq, IUPAC.ambiguous_dna)
-     
+
     my_cmp = lambda x,y: cmp(len(x), len(y))
 
     orfs = []
     prots = []
     for i in range(3):
         seq = dna[i:]
-        
+
         # BioPython doesn't like translating DNA with a length that's not
         # a multiple of 3
         if len(seq) % 3:
             seq = seq[:-(len(seq) % 3)]
-        
+
         prot = str(seq.translate())
         #putative_orfs = [re.sub(r'^[^M]*', "", o) for o in prot.split("*")]
         putative_orfs = [o for o in prot.split("*")]
@@ -83,7 +83,7 @@ def longest_orf(seq, do_prot=False):
         start = prot.find(longest) * 3 + i
         end = start + (len(longest) + 1) * 3
         orfs.append((start,end))
-    
+
     if do_prot:
         return sorted(prots, cmp=lambda x,y: cmp(len(x), len(y)))[-1]
     else:
@@ -151,10 +151,10 @@ def model_to_bed(exons, genename=None):
 
 
 
-def get_splice_score(a, maxentpath, s_type=5):
+def get_splice_score(a, s_type=5):
     if not s_type in [3,5]:
         raise Exception("Invalid splice type {}, should be 3 or 5".format(s_type))
-    maxent = maxentpath
+    maxent = getMaxPath()
     tmp = NamedTemporaryFile()
     for name,seq in a:
         tmp.write(">{}\n{}\n".format(name,seq))
@@ -168,6 +168,24 @@ def get_splice_score(a, maxentpath, s_type=5):
             score += float(vals[-1])
     return score
 
+#parse config file for the maxentPath
+def getMaxPath():
+	p = argparse.ArgumentParser()
+	p.add_argument("-c",
+               dest= "configfile",
+               default = DEFAULT_CONFIG,
+               help="configuration file (default: {0})".format(DEFAULT_CONFIG)
+              )
+	args = p.parse_args()
+        configfile = args.configfile
+        if not (configfile):
+                p.print_help()
+                sys.exit()
+        f = open(configfile)
+        conf = yaml.load(f)
+
+        chr = conf['maxent']
+	return chr
 
 def bed2exonbed(inbed, outbed):
     with open(outbed, "w") as out:
