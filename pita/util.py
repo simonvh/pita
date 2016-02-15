@@ -180,13 +180,14 @@ def getMaxPath():
                help="configuration file"
               )
 	args = p.parse_args()
+
         configfile = args.configfile
         if not (configfile):
                 p.print_help()
                 sys.exit()
         f = open(configfile)
         conf = yaml.load(f)
-
+	print(conf)
         chr = conf['maxent']
 	return chr
 
