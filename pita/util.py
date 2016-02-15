@@ -177,7 +177,6 @@ def getMaxPath():
 	p = argparse.ArgumentParser()
 	p.add_argument("-c",
                dest= "configfile",
-               default = DEFAULT_CONFIG,
                help="configuration file (default: {0})".format(DEFAULT_CONFIG)
               )
 	args = p.parse_args()
