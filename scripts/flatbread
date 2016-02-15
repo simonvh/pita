@@ -54,9 +54,9 @@ for f in a:
     chroms[f[0]] = 1
 config["chromosomes"] = chroms.keys()
 
+
 # Do all intersections with BED file
 # Is more forgiving when repeats are not inserted in the yaml file:
-
 def intersect(f):
     path = f['path']
     sys.stderr.write("Filtering {0}\n".format(path))
@@ -69,6 +69,7 @@ def intersect(f):
     b = pybedtools.BedTool(bedfile)
     a.intersect(b, wa=True).saveas(os.path.join(outname, os.path.basename(path)))
     f['path'] = os.path.basename(path)
+
 try:
     for f in config["annotation"] + config["repeats"]:
         intersect(f)
@@ -121,4 +122,4 @@ for f in config['data']:
 config["data_path"] = os.path.abspath(outname)
 
 with open("{0}.yaml".format(outname), "w") as f:
-    f.write(yaml.safe_dump(config))
+    yaml.safe_dump(config, f, encoding="utf-8", allow_unicode=True)
