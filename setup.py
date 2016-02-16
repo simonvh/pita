@@ -37,9 +37,12 @@ setup (name = 'pita',
         ],
         data_files=[],
         tests_require=['pytest'],
+        dependency_links = [
+            'https://github.com/simonvh/gimmemotifs/archive/0.8.7.tar.gz#egg=gimmemotifs-0.8.7',
+            ],
         install_requires=[
                         "SQLAlchemy",
-                        "gimmemotifs",
+                        "gimmemotifs > 0.8.6",
                         "pysam < 0.8",
                         "pyyaml",
                         "HTSeq",
