@@ -20,7 +20,7 @@ def call_cpt(start, end, strand, data, min_reads=5, min_log2_ratio=1.5, upstream
     
     # Do calculations on reverse array if gene is on the - strand or
     # when predicting 5' UTR
-    if (upstream an strand == "+") or strand == "-":
+    if (upstream and strand == "+") or strand == "-":
         counts = counts[::-1]
     
     pt = len(counts)
