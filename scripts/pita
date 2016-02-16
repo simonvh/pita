@@ -2,7 +2,7 @@
 from pita.model import get_chrom_models, load_chrom_data
 from pita.util import model_to_bed, read_statistics, exons_to_seq, longest_orf
 from pita.log import setup_logging
-from pita.config import PitaConfig
+from pita.config import config
 from pita.annotationdb import AnnotationDb
 import os
 import sys
@@ -68,7 +68,7 @@ basename = os.path.splitext(configfile)[0]
 logger = setup_logging(basename, debug_level)
 
 # Load config file
-config = PitaConfig(configfile, args.reannotate)
+config.load(configfile, args.reannotate)
 
 # FASTA output
 protein_fh = open("{0}.protein.fa".format(basename), "w")

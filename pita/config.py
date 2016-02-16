@@ -17,12 +17,13 @@ VALID_TYPES = ["bed", "gff", "gff3", "gtf"]
 DEBUG_LEVELS = ["CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"]
 
 class PitaConfig:
-    def __init__(self, fname, reannotate=False):
+    def __init__(self):
         """ fname: name of yaml configuration file
         """
-        
         self.logger = logging.getLogger("pita")
+        self.maxentpath = ""
 
+    def load(self, fname,  reannotate=False):
         # Parse YAML config file
         f = open(fname, "r")
         self.config = yaml.load(f)
@@ -45,12 +46,11 @@ class PitaConfig:
         self.keep = []
         self.filter = []
         self.experimental = []
-	
-	# MaxEnt directory
-	self.maxentpath ="" 
-	if self.config.has_key("maxent"):
-		self.maxentpath = self.config["maxent"]
-
+    
+        # MaxEnt directory
+        self.maxentpath = "" 
+        if self.config.has_key("maxent"):
+            self.maxentpath = self.config["maxent"]
 
         # Scoring weight
         self.weight = {}
@@ -164,3 +164,5 @@ class PitaConfig:
                      #   names_and_stats.append((fname, None))
                 row = [d["name"], fnames, d["feature"], (int(d["up"]), int(d["down"]))]
                 self.data.append(row)
+
+config = PitaConfig()
