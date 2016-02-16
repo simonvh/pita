@@ -1,4 +1,5 @@
 from pita.config import SAMTOOLS
+from pita.config import PitaConfig
 from subprocess import Popen, PIPE
 from Bio.Seq import Seq
 from Bio.Alphabet import IUPAC
@@ -7,6 +8,10 @@ import sys
 import subprocess as sp
 from tempfile import NamedTemporaryFile
 import logging
+import os
+import sys
+import yaml
+import argparse
 
 logger = logging.getLogger('pita')
 
@@ -14,9 +19,9 @@ def read_statistics(fname, rmrepeat=False, rmdup=False, mapped=False):
     """ Count number of reads in BAM file.
     Optional arguments rmrepeat and rmdup do nothing for now
     """
-    
+
     cmd = "{0} idxstats {1} | awk '{{total += $3 + $4}} END {{print total}}'"
-    
+
     p = Popen(
              cmd.format(SAMTOOLS, fname), 
              shell=True, 
@@ -25,7 +30,7 @@ def read_statistics(fname, rmrepeat=False, rmdup=False, mapped=False):
              )
 
     stdout,stderr = p.communicate()
-    
+
     n = int(stdout.strip())
 
     return n
@@ -33,7 +38,7 @@ def read_statistics(fname, rmrepeat=False, rmdup=False, mapped=False):
 def get_overlapping_models(exons):
     overlap = []
     sorted_exons = sorted(exons, cmp=lambda x,y: cmp(x.start, y.start))
-    
+
     for i, exon in enumerate(sorted_exons):
         j = i + 1
         while j < len(sorted_exons) and sorted_exons[j].start <= exon.end:
@@ -59,21 +64,21 @@ def exons_to_seq(exons):
 def longest_orf(seq, do_prot=False):
     if type(seq) == type([]):
         seq = exons_to_seq(seq)
-    
+
     dna = Seq(seq, IUPAC.ambiguous_dna)
-     
+
     my_cmp = lambda x,y: cmp(len(x), len(y))
 
     orfs = []
     prots = []
     for i in range(3):
         seq = dna[i:]
-        
+
         # BioPython doesn't like translating DNA with a length that's not
         # a multiple of 3
         if len(seq) % 3:
             seq = seq[:-(len(seq) % 3)]
-        
+
         prot = str(seq.translate())
         #putative_orfs = [re.sub(r'^[^M]*', "", o) for o in prot.split("*")]
         putative_orfs = [o for o in prot.split("*")]
@@ -82,7 +87,7 @@ def longest_orf(seq, do_prot=False):
         start = prot.find(longest) * 3 + i
         end = start + (len(longest) + 1) * 3
         orfs.append((start,end))
-    
+
     if do_prot:
         return sorted(prots, cmp=lambda x,y: cmp(len(x), len(y)))[-1]
     else:
@@ -153,7 +158,7 @@ def model_to_bed(exons, genename=None):
 def get_splice_score(a, s_type=5):
     if not s_type in [3,5]:
         raise Exception("Invalid splice type {}, should be 3 or 5".format(s_type))
-    maxent = "~/dwn/fordownload"
+    maxent = getMaxPath()
     tmp = NamedTemporaryFile()
     for name,seq in a:
         tmp.write(">{}\n{}\n".format(name,seq))
@@ -166,6 +171,52 @@ def get_splice_score(a, s_type=5):
         if len(vals) > 1:
             score += float(vals[-1])
     return score
+
+#parse config file for the maxentPath
+def getMaxPath():
+	DEFAULT_CONFIG = "pita.yaml"
+	DEFAULT_THREADS = 4
+	p = argparse.ArgumentParser()
+	p.add_argument("-c",
+               	dest= "configfile",
+               	default = DEFAULT_CONFIG,
+               	help="configuration file (default:{0})".format(DEFAULT_CONFIG)
+              )
+	p.add_argument("-t",
+               	dest= "threads",
+               	default = DEFAULT_THREADS,
+               	type = int,
+               	help="number of threads (default:{0})".format(DEFAULT_THREADS)
+              )
+	p.add_argument("-i",
+               	dest= "index_dir",
+               	default = None,
+               	help="genome index dir"
+              )
+	p.add_argument("-y",
+               	dest= "yaml_file",
+               	default = None,
+               	help="dump database to yaml file"
+              )
+	p.add_argument("-d",
+               	dest= "debug_level",
+               	default = "INFO",
+               	help="Debug level"
+              )
+	p.add_argument("-r",
+ 		dest ="reannotate",
+                default = False,
+                action = "store_true",
+                help="reannotate using existing database"
+                )
+	args = p.parse_args()
+	configfile = args.configfile
+	if not os.path.exists(configfile):
+		print("Configfile not found")
+		sys.exit()
+	config = PitaConfig(configfile,args.reannotate)
+
+        return config.maxentpath
 
 def bed2exonbed(inbed, outbed):
     with open(outbed, "w") as out:

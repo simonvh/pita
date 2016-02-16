@@ -159,7 +159,7 @@ if threads > 1:
 else:
     for chrom in chroms:
         if not args.reannotate:
-            load_chrom_data(config.db_conn, True, chrom, config.anno_files, config.data, index)
+            load_chrom_data(config.db_conn, True, chrom, config.anno_files, config.data,index)
         for genename, best_exons in get_chrom_models(config.db_conn, chrom, config.weight, repeats=config.repeats, prune=config.prune, keep=config.keep, filter=config.filter, experimental=config.experimental):
             print_output(genename, best_exons)
 

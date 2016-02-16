@@ -45,6 +45,12 @@ class PitaConfig:
         self.keep = []
         self.filter = []
         self.experimental = []
+	
+	# MaxEnt directory
+	self.maxentpath ="" 
+	if self.config.has_key("maxent"):
+		self.maxentpath = self.config["maxent"]
+
 
         # Scoring weight
         self.weight = {}
