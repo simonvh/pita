@@ -15,7 +15,7 @@ The following Python modules are required:
 
 * GFF parser - http://github.com/chapmanb/bcbb/tree/master/gff
 * Biopython - http://biopython.org/
-* pysam ( < 0.8)
+* pysam 
 * pyyaml
 * networkx (== 1.9)
 * GimmeMotifs - http://github.com/simonvh/gimmemotifs
