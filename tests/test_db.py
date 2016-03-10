@@ -1,4 +1,8 @@
+import os
 import pytest
+from pita.config import config
+
+config.maxentpath = os.environ["MAXENT"]
 
 @pytest.fixture
 def three_exons():

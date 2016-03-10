@@ -2,7 +2,7 @@ from distutils.core import setup
 from setuptools.command.test import test as TestCommand
 import sys
 
-VERSION = "1.72"
+VERSION = "1.73"
 DESCRIPTION = """
 pita - pita improves transcript annotation
 """
@@ -43,12 +43,12 @@ setup (name = 'pita',
         install_requires=[
                         "SQLAlchemy",
                         "gimmemotifs > 0.8.6",
-                        "pysam < 0.8",
+                        "pysam >= 0.9",
                         "pyyaml",
                         "HTSeq",
                         "bcbio-gff",
                         "biopython",
-                        "networkx ==1.9",
+                        "networkx >= 1.10",
                         "numpy",
                         ],
         cmdclass = {'test': PyTest},

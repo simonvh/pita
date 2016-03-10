@@ -570,6 +570,7 @@ class AnnotationDb():
     def nreads(self, identifier):
         q = self.session.query(ReadSource)
         q = q.filter(ReadSource.name == identifier)
+
         return sum([s.nreads for s in q.all()])
     
     def get_splice_count(self, e1, e2):

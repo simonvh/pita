@@ -21,6 +21,7 @@ class PitaConfig:
         """ fname: name of yaml configuration file
         """
         self.logger = logging.getLogger("pita")
+        
         self.maxentpath = ""
 
     def load(self, fname,  reannotate=False):

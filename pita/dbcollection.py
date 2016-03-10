@@ -9,7 +9,7 @@ import pickle
 from networkx.algorithms.components.connected import connected_components
 import networkx as nx 
 from networkx.algorithms.connectivity import minimum_st_node_cut
-from networkx.algorithms.flow import ford_fulkerson
+from networkx.algorithms.flow import edmonds_karp
 from itertools import izip, count
 from gimmemotifs.genome_index import GenomeIndex
 import random
@@ -17,7 +17,6 @@ import random
 def connected_models(graph):
     for u, v in graph.edges():
         graph[u][v]['weight'] = -1
-    
     for c in nx.weakly_connected_components(graph):
         starts =  [k for k,v in graph.in_degree(c).items() if v == 0]
         ends = [k for k,v in graph.out_degree(c).items() if v == 0]
@@ -71,7 +70,8 @@ class DbCollection:
         
         self.logger.debug("Loading introns in graph")
         n = 0
-        for junction in self.db.get_splice_junctions(chrom, ev_count=1, read_count=20):
+        #for junction in self.db.get_splice_junctions(chrom, ev_count=1, read_count=20):
+        for junction in self.db.get_splice_junctions(chrom, ev_count=0, read_count=1):
         #for junction in self.db.get_splice_junctions(chrom):
             #print junction
             n += 1
@@ -118,10 +118,10 @@ class DbCollection:
    
     def get_node_cuts(self, model):
         node_cuts = []
-        cuts = list(minimum_st_node_cut(self.graph, model[0], model[-1], flow_func=ford_fulkerson))
+        cuts = list(minimum_st_node_cut(self.graph, model[0], model[-1], flow_func=edmonds_karp))
         while len(cuts) == 1:
             node_cuts = cuts + node_cuts
-            cuts = list(minimum_st_node_cut(self.graph, model[0], cuts[0], flow_func=ford_fulkerson))
+            cuts = list(minimum_st_node_cut(self.graph, model[0], cuts[0], flow_func=edmonds_karp))
         return node_cuts
 
     def get_best_variant(self, model, weight):

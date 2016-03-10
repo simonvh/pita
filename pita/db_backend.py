@@ -78,7 +78,7 @@ class ReadSource(Base):
     id = Column(Integer, primary_key=True)
     name = Column(String(250))
     source = Column(String(250))
-    nreads = Column(Integer)
+    nreads = Column(Integer, default=0)
 
 class FeatureReadCount(Base):
     __tablename__ = "read_count"
