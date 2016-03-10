@@ -43,7 +43,7 @@ setup (name = 'pita',
         install_requires=[
                         "SQLAlchemy",
                         "gimmemotifs > 0.8.6",
-                        "pysam < 0.8",
+                        "pysam",
                         "pyyaml",
                         "HTSeq",
                         "bcbio-gff",
