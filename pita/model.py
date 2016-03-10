@@ -1,12 +1,9 @@
 from pita.dbcollection import DbCollection
 from pita.annotationdb import AnnotationDb
 from pita.io import TabixIteratorAsFile, read_gff_transcripts, read_bed_transcripts
-from pita.util import get_overlapping_models,to_genomic_orf,longest_orf
+from pita.util import get_overlapping_models,longest_orf
 import logging
 import pysam
-import itertools
-import sys
-from tempfile import NamedTemporaryFile
 from pita.config import SEP
 
 def load_chrom_data(conn, new, chrom, anno_files, data, index=None):
@@ -15,10 +12,10 @@ def load_chrom_data(conn, new, chrom, anno_files, data, index=None):
     try:
         # Read annotation files
         db = AnnotationDb(index=index, conn=conn, new=new)
-        logger.debug("{} {}".format(chrom, id(db.session)))
-        logger.info("Reading annotation for {0}".format(chrom))
+        logger.debug("%s %s", chrom, id(db.session))
+        logger.info("Reading annotation for %s", chrom)
         for name, fname, tabix_file, ftype, min_exons in anno_files:
-            logger.info("Reading annotation from {0}".format(fname))
+            logger.info("Reading annotation from %s", fname)
             tabixfile = pysam.Tabixfile(tabix_file)
             #tabixfile = fname
             if chrom in tabixfile.contigs:
@@ -33,18 +30,18 @@ def load_chrom_data(conn, new, chrom, anno_files, data, index=None):
             tabixfile.close()
             del tabixfile
         
-        logger.info("Loading data for {0}".format(chrom))
+        logger.info("Loading data for %s", chrom)
 
         for name, fname, span, extend in data:
             if span == "splice":
-                logger.info("Reading splice data {0} from {1}".format(name, fname))
+                logger.info("Reading splice data %s from %s", name, fname)
                 db.get_splice_statistics(chrom, fname, name)
             else:
-                logger.info("Reading BAM data {0} from {1}".format(name, fname))
+                logger.info("Reading BAM data %s from %s", name, fname)
                 db.get_read_statistics(chrom, fname, name=name, span=span, extend=extend, nreads=None)
  
     except:
-        logger.exception("Error on {0}".format(chrom))
+        logger.exception("Error on %s", chrom)
         raise
 
 def get_chrom_models(conn, chrom, weight, repeats=None, prune=None, keep=None, filter=None, experimental=None):
@@ -74,13 +71,13 @@ def get_chrom_models(conn, chrom, weight, repeats=None, prune=None, keep=None, f
         if prune and prune.has_key("exons"):
             l = prune["exons"]["length"]
             ev = prune["exons"]["evidence"]
-            logger.debug("EXON PRUNE {} {}".format(l, ev))
+            logger.debug("EXON PRUNE %s %s", l, ev)
             mc.filter_long(l=l, evidence=ev)
         
         if prune and prune.has_key("introns"):
             max_reads = prune["introns"]["max_reads"]
             ev = prune["introns"]["evidence"]
-            logger.debug("EXON PRUNE {} {}".format(max_reads, ev))
+            logger.debug("EXON PRUNE %s %s", max_reads, ev)
             mc.prune_splice_junctions(evidence=3, max_reads=10, keep=keep)
         
         # Remove short introns
@@ -88,15 +85,15 @@ def get_chrom_models(conn, chrom, weight, repeats=None, prune=None, keep=None, f
       
         models = {}
         exons = {}
-        logger.info("Calling transcripts for {0}".format(chrom))
+        logger.info("Calling transcripts for %s", chrom)
         for cluster in mc.get_connected_models():
-            logger.debug("{}: got cluster".format(chrom))
+            logger.debug("%s: got cluster", chrom)
             while len(cluster) > 0:
                 #logger.debug("best model")
                 best_model = mc.max_weight(cluster, weight)
-                logger.debug("{}: got best model".format(chrom))
+                logger.debug("%s: got best model", chrom)
                 best_model = mc.get_best_variant(best_model, weight) 
-                logger.debug("{}: got best variant".format(chrom))
+                logger.debug("%s: got best variant", chrom)
                 genename = "{0}:{1}-{2}_".format(
                                             best_model[0].chrom,
                                             best_model[0].start,
@@ -104,7 +101,8 @@ def get_chrom_models(conn, chrom, weight, repeats=None, prune=None, keep=None, f
                                             )
                    
                 
-                logger.info("Best model: {0} with {1} exons".format(genename, len(best_model)))
+                logger.info("Best model: %s with %s exons", 
+                        genename, len(best_model))
                 models[genename] = [genename, best_model]
             
                 for exon in best_model:
@@ -118,7 +116,7 @@ def get_chrom_models(conn, chrom, weight, repeats=None, prune=None, keep=None, f
             #logger.debug("Prune: {0}".format(prune))
             overlap = get_overlapping_models([x[0] for x in exons.values()])
             if len(overlap) > 1:
-                logger.info("{0} overlapping exons".format(len(overlap)))
+                logger.info("%s overlapping exons", len(overlap))
 #                logger.warn("Overlap: {0}".format(overlap))
                 
             gene_count = {}
@@ -158,7 +156,7 @@ def get_chrom_models(conn, chrom, weight, repeats=None, prune=None, keep=None, f
                     w1 = 0.0
                     w2 = 0.0
                     for d in prune["overlap"]["weights"]:
-                        logger.debug("Pruning overlap: {0}".format(d))
+                        logger.debug("Pruning overlap: %s", d)
                         tmp_w1 = mc.get_weight(m1, d["name"], d["type"])
                         tmp_w2 = mc.get_weight(m2, d["name"], d["type"])
                         m = max((tmp_w1, tmp_w2))
@@ -167,17 +165,17 @@ def get_chrom_models(conn, chrom, weight, repeats=None, prune=None, keep=None, f
                             w2 += tmp_w2 / max((tmp_w1, tmp_w2))
 
                     if w1 >= w2:
-                        logger.info("Discarding {}".format(gene2))
+                        logger.info("Discarding %s", gene2)
                         discard[gene2] = 1
                     else:
-                        logger.info("Discarding {}".format(gene1))
+                        logger.info("Discarding %s", gene1)
                         discard[gene1] = 1
         
-        logger.info("Done calling transcripts for {0}".format(chrom))
+        logger.info("Done calling transcripts for %s", chrom)
         result = [v for m,v in models.items() if not m in discard]
         return [[name, [e.to_flat_exon() for e in exons]] for name, exons in result]
 
     except:
-        logger.exception("Error on {0}".format(chrom))
+        logger.exception("Error on %s", chrom)
   
     return []
