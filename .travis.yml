@@ -20,12 +20,13 @@ before_install:
 install:
   - conda install --yes python=$TRAVIS_PYTHON_VERSION pip sqlalchemy pyyaml networkx numpy scipy
   - conda install --yes -c bioconda python=$TRAVIS_PYTHON_VERSION pysam htseq biopython bcbiogff pybedtools
+  - git clone https://github.com/Congenica/maxentscan.git
   - pip install .
 #  - pip install nose coverage
 #  - pip install coveralls
 # # command to run tests, e.g. python setup.py test
 script:  
-  - python setup.py test
+  - MAXENT=maxentscan/ python setup.py test
  
 #after_sucess:
 #  coveralls
