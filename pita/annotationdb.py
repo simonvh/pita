@@ -2,15 +2,16 @@ import os
 import sys
 import logging
 from gimmemotifs.genome_index import GenomeIndex
-from sqlalchemy import and_,or_,func
-from sqlalchemy.orm import joinedload,aliased
-from pita import db_session
+from sqlalchemy import and_,func
+from sqlalchemy.orm import aliased
 from pita.db_backend import * 
 from pita.util import read_statistics, get_splice_score
 import yaml
 from pita.io import exons_to_tabix_bed, tabix_overlap
+from fluff.fluffio import get_binned_stats
+from tempfile import NamedTemporaryFile
 
-class AnnotationDb():
+class AnnotationDb(object):
     def __init__(self, session=None, conn='mysql://pita:@localhost/pita', new=False, index=None):
         self.logger = logging.getLogger("pita")
         if session:
@@ -46,7 +47,7 @@ class AnnotationDb():
     def __enter__(self):
         return self
 
-    def __exit__(self, type, value, traceback):
+    def __exit__(self, _type, value, traceback):
         self.session.close()
     
     def dump_yaml(self):
@@ -78,7 +79,7 @@ class AnnotationDb():
     
     
         t = ["chrom","start","end","strand","ftype","seq"]
-        result = self.engine.execute(
+        self.engine.execute(
             Feature.__table__.insert(),
             [dict(zip(t, row[1:])) for row in data['feature']]
             )
@@ -118,7 +119,7 @@ class AnnotationDb():
                 ]
     
             t = ["feature_id", "evidence_id"]
-            result = self.engine.execute(
+            self.engine.execute(
                 FeatureEvidence.__table__.insert(),
                 [dict(zip(t, row)) for row in data['feature_evidence']]
                 )
@@ -156,7 +157,7 @@ class AnnotationDb():
                 try:                    
                     seq = self.index.get_sequence(chrom, exon[1] - 20, exon[2] + 20, strand)
                     real_seq = seq[20:-20]
-                except:
+                except Exception:
                     real_seq = self.index.get_sequence(chrom, exon[1], exon[2], strand)
                 seqs.append(seq)
             
@@ -172,9 +173,8 @@ class AnnotationDb():
 
         splice_donors = []
         splice_acceptors = []
-        bla = []
         for i,(start,end) in enumerate([(e1[2], e2[1]) for e1, e2 in zip(exons[0:-1], exons[1:])]):
-            self.logger.debug("{} {} {} {}".format(chrom, start, end, strand))
+            self.logger.debug("%s %s %s %s", chrom, start, end, strand)
             sj = get_or_create(self.session, Feature,
                              chrom = chrom,
                              start = start,
@@ -202,7 +202,7 @@ class AnnotationDb():
         donor_score = get_splice_score(splice_donors, 5)
         acceptor_score = get_splice_score(splice_acceptors, 3)
         if donor_score + acceptor_score < 0:
-            self.logger.warning("Skipping {}, splicing not OK!".format(name))
+            self.logger.warning("Skipping %s, splicing not OK!", name)
             self.session.rollback()
         else:
             self.session.commit()
@@ -240,7 +240,7 @@ class AnnotationDb():
                     having(func.sum(FeatureReadCount.count) < read_count)
 
             for splice in fs:
-                self.logger.debug("Considering {}".format(splice))        
+                self.logger.debug("Considering %s", splice)        
                 if len(splice.evidences) >= ev_count:
                     features.append(splice)
             
@@ -253,7 +253,7 @@ class AnnotationDb():
                     having(func.sum(FeatureReadCount.count) == None)
 
             for splice in fs:
-                self.logger.debug("Considering {} (no reads)".format(splice))        
+                self.logger.debug("Considering %s (no reads)", splice)        
                 if len(splice.evidences) >= ev_count:
                     features.append(splice)
 
@@ -266,7 +266,7 @@ class AnnotationDb():
                     group_by(Feature).\
                     having(func.sum(FeatureReadCount.count) >= read_count)
             for f in fs:
-                self.logger.debug("Considering {} (reads)".format(f))        
+                self.logger.debug("Considering %s (reads)", f)        
                 features.append(f)
             #features += [f for f in fs]
         
@@ -326,7 +326,8 @@ class AnnotationDb():
         with a repeat track
         """
 
-        self.logger.warn("Filtering repeats: {} with fraction {}".format(os.path.basename(rep["path"]), rep["fraction"]))
+        self.logger.warn("Filtering repeats: %s with fraction %s", 
+                os.path.basename(rep["path"]), rep["fraction"])
         
         exons = self.get_features("exon", chrom)
         exon_tabix = exons_to_tabix_bed(exons) 
@@ -336,7 +337,7 @@ class AnnotationDb():
         
         chunk = 20
         for i in range(0, len(exon_ids), chunk):
-            self.logger.warn("Filtering {}".format(exon_ids[i:i + chunk]))
+            self.logger.warn("Filtering %s", exon_ids[i:i + chunk])
             query = self.session.query(Feature).\
                     filter(Feature.id.in_(exon_ids[i:i + chunk])).\
                     update({Feature.flag:True}, synchronize_session=False)
@@ -348,7 +349,7 @@ class AnnotationDb():
         #    print line
 
     def filter_evidence(self, chrom, source, experimental):
-        self.logger.debug("Filtering {}".format(source))
+        self.logger.debug("Filtering %s", source)
         #query = self.session.query(Feature).\
         #        update({Feature.flag:False}, synchronize_session=False)
         #self.session.commit()
@@ -384,21 +385,19 @@ class AnnotationDb():
         #ids = [i[0] for i in query]
         
         # Flag features
-        query = self.session.query(Feature).\
+        self.session.query(Feature).\
                 filter(Feature.id.in_(a)).\
                 update({Feature.flag:True}, synchronize_session=False)
         self.session.commit()
         
     def get_read_statistics(self, chrom, fnames, name, span="all", extend=(0,0), nreads=None):
-        from fluff.fluffio import get_binned_stats
-        from tempfile import NamedTemporaryFile
 
         if span not in ["all", "start", "end"]:
             raise Exception("Incorrect span: {}".format(span))
         
         tmp = NamedTemporaryFile(delete=False)
         estore = {}
-        self.logger.debug("Writing exons to file {}".format(tmp.name))
+        self.logger.debug("Writing exons to file %s", tmp.name)
         exons =  self.get_exons(chrom)
         if len(exons) == 0:
             return
@@ -446,15 +445,14 @@ class AnnotationDb():
             fnames = [fnames]
 
         for i, fname in enumerate(fnames):
-            self.logger.debug("Creating read_source for{} {}".format(name, fname)) 
+            self.logger.debug("Creating read_source for %s %s", name, fname)
             read_source = get_or_create(self.session, ReadSource, name=name, source=fname)
             self.session.commit() 
+            rmrepeats = False
             if fname.endswith("bam") and (not nreads or not nreads[i]):
                 rmrepeats = True
                 self.logger.debug("Counting reads in {0}".format(fname))
                 read_source.nreads = read_statistics(fname)
-            else:
-                rmrepeats = False
 
             self.logger.debug("Getting overlap from {0}".format(fname))
             result = get_binned_stats(tmp.name, fname, 1, rpkm=False, rmdup=False, rmrepeats=False)
