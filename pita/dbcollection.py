@@ -141,7 +141,7 @@ class DbCollection:
                 variants = [m for m in self.all_simple_paths(n1, n2)]
                 self.logger.debug("Got {} variants".format(len(variants)))
                 best_variant += self.max_weight(variants, weight)[1:]
-                self.logger.debug("Best variant".format(best_variant))
+                self.logger.debug("Best variant: {}".format(best_variant))
         else:
             variants = [m for m in self.all_simple_paths(model[0], model[-1])]
             best_variant = self.max_weight(variants, weight)
@@ -231,7 +231,10 @@ class DbCollection:
         self.logger.debug("{} {} {}".format(counts[my[0]], np.mean(bla),  np.std(bla)))
         return counts[my[0]] < 0.1 * np.mean(bla)# - np.std(bla))
 
-    def prune_splice_junctions(self, max_reads=10, evidence=2, keep=[]):
+    def prune_splice_junctions(self, max_reads=10, evidence=2, keep=None):
+        if keep is None:
+            keep = []
+
         keep = set(keep)
         for splice in self.db.get_splice_junctions(self.chrom, max_reads=max_reads):
             self.logger.debug("Splice {}, evidence {}".format(splice, len(splice.evidences)))

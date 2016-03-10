@@ -47,8 +47,14 @@ def load_chrom_data(conn, new, chrom, anno_files, data, index=None):
         logger.exception("Error on {0}".format(chrom))
         raise
 
-def get_chrom_models(conn, chrom, weight, repeats=None, prune=None, keep=[], filter=[], experimental=[]):
-    
+def get_chrom_models(conn, chrom, weight, repeats=None, prune=None, keep=None, filter=None, experimental=None):
+    if keep is None:
+        keep = []
+    if filter is None:
+        filter = []
+    if experimental is None:
+        experimental = []
+
     logger = logging.getLogger("pita")
     logger.debug(str(weight)) 
     try:

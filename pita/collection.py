@@ -174,7 +174,7 @@ class Collection:
                 variants = [m for m in self.all_simple_paths(n1, n2)]
                 self.logger.debug("Got {} variants".format(len(variants)))
                 best_variant += self.max_weight(variants, weight)[1:]
-                self.logger.debug("Best variant".format(best_variant))
+                self.logger.debug("Best variant: {}".format(best_variant))
         else:
             variants = [m for m in self.all_simple_paths(model[0], model[-1])]
             best_variant = self.max_weight(variants, weight)
