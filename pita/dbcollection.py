@@ -21,7 +21,7 @@ def connected_models(graph):
             order,d = nx.bellman_ford(graph,s, weight='weight')
             
             for e in ends:
-                if d in e: 
+                if e in d: 
                     path = [e]
                     x = e
                     while order[x]:
