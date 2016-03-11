@@ -3,8 +3,6 @@ from pita.config import config
 from subprocess import Popen, PIPE
 from Bio.Seq import Seq
 from Bio.Alphabet import IUPAC
-import re
-import sys
 import subprocess as sp
 from tempfile import NamedTemporaryFile
 import logging
@@ -16,6 +14,11 @@ def read_statistics(fname, rmrepeat=False, rmdup=False, mapped=False):
     Optional arguments rmrepeat and rmdup do nothing for now
     """
 
+    if rmrepeat:
+        pass
+    if rmdup:
+        pass
+
     cmd = "{0} idxstats {1} | awk '{{total += $3 + $4}} END {{print total}}'"
 
     p = Popen(
@@ -25,7 +28,7 @@ def read_statistics(fname, rmrepeat=False, rmdup=False, mapped=False):
              stderr=PIPE
              )
 
-    stdout,stderr = p.communicate()
+    stdout,_ = p.communicate()
 
     n = int(stdout.strip())
 
@@ -53,12 +56,12 @@ def exons_to_seq(exons):
         if e.seq:
             seq = "".join((seq, e.seq))
         else:
-            logger.error("exon {} has no sequence".format(e))
+            logger.error("exon %s has no sequence", e)
 
     return seq
 
 def longest_orf(seq, do_prot=False):
-    if type(seq) == type([]):
+    if isinstance(seq, list):
         seq = exons_to_seq(seq)
 
     dna = Seq(seq, IUPAC.ambiguous_dna)
@@ -97,7 +100,7 @@ def find_genomic_pos(pos, exons):
                 return e.end - pos
             else:
                 pos -= size
-        return e.start
+        return exons[0].start
     else:
         for e in exons:
             size = e.end - e.start
@@ -105,7 +108,7 @@ def find_genomic_pos(pos, exons):
                 return e.start + pos
             else:
                 pos -= size
-        return e.end
+        return exons[-1].end
 
 def to_genomic_orf(start, end, exons):
     genomic_start = find_genomic_pos(start, exons)
@@ -152,7 +155,7 @@ def model_to_bed(exons, genename=None):
 
 
 def get_splice_score(a, s_type=5):
-    if not s_type in [3,5]:
+    if s_type not in [3,5]:
         raise Exception("Invalid splice type {}, should be 3 or 5".format(s_type))
     
     maxent = config.maxentpath
@@ -183,8 +186,10 @@ def bed2exonbed(inbed, outbed):
                 exonsizes = [int(x) for x in vals[10].split(",") if x]
                 exonstarts = [int(x) for x in vals[11].split(",") if x]
                 for exon_start, exon_size in zip(exonstarts, exonsizes):
-                    out.write("%s\t%s\t%s\t%s\t%s\t%s\n" % (vals[0], int(vals[1]) + exon_start, int(vals[1]) + exon_start + exon_size, vals[3], vals[4], vals[5]))
-    
-
-if __name__ == "__main__":
-    print longest_orf("CAGGAAGTCACGGAGCGCGGGATTTTTCAATCAGACTGATGAACAGATGAATACGACGAAGAGCATGGAGGCAATTCTGGAATTTTTTGTGCTGTGTGATCCAAAGAAGCGGCCAGTCAGACTGAACCGGTTGCCTTCTGTACCAAAGGATGCACTGTGTTATTCTGCCCTGCTGCCATCTCCTCTACCATCCCAGCTGTTGATCTTTGGCTTAGGTGACTGGTCAGGGTTATCTGGAGGAAGCACAGTAGAAGTGAAATTGGAAGGAAGTGGAACCAAAGAGCACAGACTGGGAACGCTGACTCCTGAGTCAAGATGCTTCCTGTGGGAATCTGACCAAAACCCCGACACCAGCATAATGTTACAAGAGGGAAAGCTGCATATCTGCATGTCGGTTAAAGGGCAGGTCAATATTAATTCTACTAACAGGAAAAAAGAGCATGGAAAGCGCAAGAGAATTAAAGAGGAAGAGGAAAATGTTTGTCCAAATAGTGGACATGTAAAAGTGCCTGCTCAAAAACAGAAGAACAGTAGTCCTAAGAGTCCAGCACCAGCAAAGCAACTTGCTCATTCTAAGGCCTTTTTAGCAGCACCAGCTGTGCCAACTGCACGCTGGGGTCAAGCGCTCTGTCCTGTCAACTCTGAGACAGTAATCTTGATTGGTGGACAGGGAACACGTATGCAGTTCTGTAAGGATTCCATGTGGAAACTGAATACAGATAGGAGCACATGGACTCCAGCTGAGGCATTGGCAGATGGCCTTTCACCAGAAGCTCGTACTGGGCACACAGCAACCTTCGATCCTGAGAACAACCGTATTTATGTGTTTGGAGGTTCTAAGAACAGAAAATGGTTCAATGATGTACATATTTTGGACATTGAGGCCTGGCGATGGAGGAGCGTGGAAGTAAGTAAACTAAGTAGTTGA")
+                    out.write("{}\t{}\t{}\t{}\t{}\t{}\n".format(
+                        vals[0], 
+                        int(vals[1]) + exon_start, 
+                        int(vals[1]) + exon_start + exon_size, 
+                        vals[3], 
+                        vals[4], 
+                        vals[5]))
