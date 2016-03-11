@@ -247,7 +247,7 @@ class DbCollection(object):
         for exon in self.db.get_long_exons(self.chrom, l, evidence):
             out_edges = len(self.graph.out_edges([exon]))
             in_edges = len(self.graph.in_edges([exon]))
-            self.logger.debug("Filter long: %s, in %s out %S", exon, in_edges,out_edges)
+            self.logger.debug("Filter long: %s, in %s out %s", exon, in_edges, out_edges)
 
             #print exon, exon.strand, in_edges, out_edges
             if in_edges >= 0 and out_edges >= 1 and exon.strand == "+" or in_edges >= 1 and out_edges >= 0 and exon.strand == "-":

@@ -1,6 +1,4 @@
 from BCBio import GFF
-#from pita.collection import *
-import pprint
 import sys
 import os
 import logging 
@@ -12,8 +10,8 @@ import pybedtools
 def _create_tabix(fname, ftype):
     logger = logging.getLogger("pita")
     tabix_file = ""
-    logger.info("Creating tabix index for {0}".format(os.path.basename(fname)))
-    logger.debug("Preparing {0} for tabix".format(fname))
+    logger.info("Creating tabix index for %s", os.path.basename(fname))
+    logger.debug("Preparing %s for tabix", fname)
     tmp = NamedTemporaryFile(prefix="pita", delete=False)
     preset = "gff"
     if ftype == "bed":
@@ -26,20 +24,20 @@ def _create_tabix(fname, ftype):
     logger.debug(cmd.format(fname, tmp.name))
     sp.call(cmd.format(fname, tmp.name), shell=True)
     # Compress using bgzip
-    logger.debug("compressing {0}".format(tmp.name))
+    logger.debug("compressing %s", tmp.name)
     tabix_file = tmp.name + ".gz"
     pysam.tabix_compress(tmp.name, tabix_file)
     tmp.close()
     # Index (using tabix command line, as pysam.index results in a Segmentation fault
-    logger.debug("indexing {0}".format(tabix_file))
+    logger.debug("indexing %s", tabix_file)
     sp.call("tabix {0} -p {1}".format(tabix_file, preset), shell=True)
     return tabix_file
 
 def exons_to_tabix_bed(exons):
     logger = logging.getLogger("pita")
-    logger.debug("Converting {} exons to tabix bed".format(len(exons)))
+    logger.debug("Converting %s exons to tabix bed", len(exons))
     tmp = NamedTemporaryFile(prefix="pita", delete=False)
-    logger.debug("Temp name {}".format(tmp.name))
+    logger.debug("Temp name %s", tmp.name)
     for exon in sorted(exons, cmp=lambda x,y: cmp([x.chrom, x.start], [y.chrom, y.start])):
         tmp.write("{}\t{}\t{}\t{}\t{}\t{}\n".format(
             exon.chrom, exon.start, exon.end, exon.id, "0", exon.strand))
@@ -50,7 +48,7 @@ def exons_to_tabix_bed(exons):
 
 def tabix_overlap(fname1, fname2, chrom, fraction):
     logger = logging.getLogger("pita")
-    logger.debug("TABIX overlap between {} and {}, {}".format(fname1, fname2, fraction))
+    logger.debug("TABIX overlap between %s and %s, %s", fname1, fname2, fraction)
 
     tab1 = pysam.Tabixfile(fname1)
     tab2 = pysam.Tabixfile(fname2)
@@ -133,19 +131,19 @@ def read_gff_transcripts(fobj, fname="", min_exons=1, merge=0):
     for rec in GFF.parse(fobj):
         chrom = rec.id
         for feature in rec.features:
-            #logger.debug("feature: {0}".format(feature))
+            #logger.debug("feature: {0}", feature)
             
             for gene in _gff_type_iterator(feature, ['mRNA', 'transcript', 'inferred_parent']):
-                #logger.debug("Adding gene: {0}".format(gene))
+                #logger.debug("Adding gene: {0}", gene)
                 exons = []
-                #logger.debug("subfeatures: {0}".format(gene.sub_features))
+                #logger.debug("subfeatures: {0}", gene.sub_features)
                 for exon in [f for f in gene.sub_features if f.type == 'exon']:
                     #link[gene.id] = link.setdefault(gene.id, 0) + 1
                     start = int(exon.location.start.position)# - 1    
                     end = int(exon.location.end.position)
                     strand = smap[exon.strand]
                     exons.append([chrom, start, end, strand])
-                logger.debug("{0}: {1} - {2} exons".format(fname, gene.id, len(exons)))
+                logger.debug("%s: %s - %s exons", fname, gene.id, len(exons))
                 if len(exons) >= min_exons:
                     transcripts.append([gene.id, fname, exons])
 
@@ -187,10 +185,10 @@ def read_bed_transcripts(fobj, fname="", min_exons=1, merge=0):
                          ]
                     
                 if len(exons) >= min_exons:
-                    logger.debug("read_bed: adding {0}".format(vals[3]))
+                    logger.debug("read_bed: adding %s", vals[3])
                     transcripts.append([name, fname, exons])
                 else:
-                    logger.debug("read_bed: not adding {0}, filter on minimum exons".format(vals[3]))
+                    logger.debug("read_bed: not adding %s, filter on minimum exons", vals[3])
             
             except:
                 print "Error parsing BED file"
