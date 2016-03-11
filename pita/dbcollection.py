@@ -1,18 +1,13 @@
-from pita.exon import *
-from pita.util import read_statistics
-from pita.util import longest_orf,exons_to_seq,model_to_bed
-from pita.config import SEP
-import numpy as np
-import sys
+from itertools import izip
 import logging
-import pickle
-from networkx.algorithms.components.connected import connected_components
+import random
+
+import numpy as np
 import networkx as nx 
 from networkx.algorithms.connectivity import minimum_st_node_cut
 from networkx.algorithms.flow import edmonds_karp
-from itertools import izip, count
-from gimmemotifs.genome_index import GenomeIndex
-import random
+
+from pita.util import longest_orf,exons_to_seq
 
 def connected_models(graph):
     for u, v in graph.edges():
@@ -22,11 +17,11 @@ def connected_models(graph):
         ends = [k for k,v in graph.out_degree(c).items() if v == 0]
         paths = []
         
-        for i,s in enumerate(starts):
+        for s in starts:
             order,d = nx.bellman_ford(graph,s, weight='weight')
             
             for e in ends:
-                if d.has_key(e): 
+                if d in e: 
                     path = [e]
                     x = e
                     while order[x]:
@@ -42,12 +37,12 @@ def recursive_neighbors(graph, node_list):
         result += graph.neighbors(node)
     new_list = list(set(node_list + result))
     for node in result:
-        if not node in node_list:
+        if node not in node_list:
             return recursive_neighbors(graph, new_list)
     return new_list
 
 
-class DbCollection:
+class DbCollection(object):
     def __init__(self, db, chrom=None):
         # dict with chrom as key
         self.logger = logging.getLogger("pita")
@@ -72,11 +67,9 @@ class DbCollection:
         n = 0
         #for junction in self.db.get_splice_junctions(chrom, ev_count=1, read_count=20):
         for junction in self.db.get_splice_junctions(chrom, ev_count=0, read_count=1):
-        #for junction in self.db.get_splice_junctions(chrom):
-            #print junction
             n += 1
             self.add_feature(junction)
-        self.logger.debug("{} introns were loaded".format(n))
+        self.logger.debug("%s introns were loaded", n)
 
 
     def add_feature(self, feature):
@@ -84,13 +77,9 @@ class DbCollection:
         """
 
         if feature.ftype == "exon":
-            exon = feature
-            
             # Add chromosome to keys
             self.graph.add_node(feature)
             self.graph.node[feature]['weight'] = 1
-            #if self.index:
-            #    e.seq = self.index.get_sequence(chrom, start, end, strand)
         
         elif feature.ftype == "splice_junction":
           
@@ -113,7 +102,7 @@ class DbCollection:
     def get_connected_models(self):
         for paths in connected_models(self.graph):
             if len(paths) > 0:
-                self.logger.debug("yielding {0} paths".format(len(paths)))
+                self.logger.debug("yielding %s paths", len(paths))
             yield paths
    
     def get_node_cuts(self, model):
@@ -132,16 +121,16 @@ class DbCollection:
         nodeset = self.get_node_cuts(model)
         if len(list(nodeset)) > 0:
             self.logger.debug("option 1")
-            self.logger.debug("{}".format(str(nodeset)))
+            self.logger.debug(str(nodeset))
             nodeset = [model[0]] + list(nodeset) + [model[-1]]
             self.logger.debug("got nodeset")
             best_variant = [model[0]]
             for n1,n2 in zip(nodeset[:-1], nodeset[1:]):
-                self.logger.debug("{} {}".format(str(n1), str(n2)))
+                self.logger.debug("%s %s", str(n1), str(n2))
                 variants = [m for m in self.all_simple_paths(n1, n2)]
-                self.logger.debug("Got {} variants".format(len(variants)))
+                self.logger.debug("Got %s variants", len(variants))
                 best_variant += self.max_weight(variants, weight)[1:]
-                self.logger.debug("Best variant: {}".format(best_variant))
+                self.logger.debug("Best variant: %s", best_variant)
         else:
             variants = [m for m in self.all_simple_paths(model[0], model[-1])]
             best_variant = self.max_weight(variants, weight)
@@ -157,9 +146,8 @@ class DbCollection:
     def prune(self):
         pruned = []
 
-        for i,cluster in enumerate(self.get_connected_models()):
-            self.logger.debug("Pruning {0} models".format(len(cluster)))
-            #print i + 1
+        for cluster in self.get_connected_models():
+            self.logger.debug("Pruning %s models", len(cluster))
             
             discard = []
             new_cluster = [m for m in cluster]
@@ -210,7 +198,7 @@ class DbCollection:
             if e1 in self.graph and e2 in self.graph and (e1, e2) in self.graph.edges():
                 my.append((e1.end, e2.start))        
                 for e in [e1, e2]:
-                    if not e in exons:
+                    if e not in exons:
                         exons.append(e) 
         
         if len(exons) == 0:
@@ -222,13 +210,13 @@ class DbCollection:
         
         counts = {}
         for s in splices:
-            if not counts.has_key((s[0].end, s[1].start)):
+            if (s[0].end, s[1].start) not in counts:
                 counts[(s[0].end, s[1].start)] = self.db.get_splice_count(s[0], s[1])
 
         bla = [v for k,v in counts.items() if k not in my]
         if len(bla) == 0:
             return False
-        self.logger.debug("{} {} {}".format(counts[my[0]], np.mean(bla),  np.std(bla)))
+        self.logger.debug("%s %s %s", counts[my[0]], np.mean(bla),  np.std(bla))
         return counts[my[0]] < 0.1 * np.mean(bla)# - np.std(bla))
 
     def prune_splice_junctions(self, max_reads=10, evidence=2, keep=None):
@@ -237,21 +225,21 @@ class DbCollection:
 
         keep = set(keep)
         for splice in self.db.get_splice_junctions(self.chrom, max_reads=max_reads):
-            self.logger.debug("Splice {}, evidence {}".format(splice, len(splice.evidences)))
+            self.logger.debug("Splice %s, evidence %s", splice, len(splice.evidences))
             ev_sources = [e.source for e in splice.evidences]
             if keep.intersection(ev_sources):
-                self.logger.debug("Keeping this splice {}".format(splice))
+                self.logger.debug("Keeping this splice %s", splice)
                 continue
             if len(splice.evidences) <= evidence:
-                self.logger.debug("Checking splice {}".format(splice))
+                self.logger.debug("Checking splice %s", splice))
                 if self.is_weak_splice(splice, evidence):
-                    self.logger.debug("Removing splice {}".format(splice))
+                    self.logger.debug("Removing splice %s", splice)
                     for e1,e2 in self.db.get_junction_exons(splice):
                         if (e1,e2) in self.graph.edges():
                             self.graph.remove_edge(e1, e2)
                             for node in e1, e2:
                                 if len(self.graph.edges(node)) == 0:
-                                    self.logger.debug("Removing lonely exon {}".format(node))
+                                    self.logger.debug("Removing lonely exon %s", node)
                                     self.graph.remove_node(node)
    
     def filter_long(self, l=1000, evidence=2):
@@ -259,19 +247,19 @@ class DbCollection:
         for exon in self.db.get_long_exons(self.chrom, l, evidence):
             out_edges = len(self.graph.out_edges([exon]))
             in_edges = len(self.graph.in_edges([exon]))
-            self.logger.debug("Filter long: {}, in {} out {}".format(exon, in_edges,out_edges))
+            self.logger.debug("Filter long: %s, in %s out %S", exon, in_edges,out_edges)
 
             #print exon, exon.strand, in_edges, out_edges
             if in_edges >= 0 and out_edges >= 1 and exon.strand == "+" or in_edges >= 1 and out_edges >= 0 and exon.strand == "-":
                 #print "Removing", exon
-                self.logger.info("Removing long exon {0}".format(exon))
+                self.logger.info("Removing long exon %s", exon)
                 self.graph.remove_node(exon)
     
     def filter_and_merge(self, nodes, l):
         for e1, e2 in self.graph.edges_iter(nodes):
             if e2.start - e1.end <= l:
                 new_exon = self.add_exon(e1.chrom, e1.start, e2.end, e1.strand)
-                self.logger.info("Adding {0}".format(new_exon))
+                self.logger.info("Adding %s", new_exon)
                 for e_in in [e[0] for e in self.graph.in_edges([e1])]:
                     self.graph.add_edge(e_in, new_exon)
                 for e_out in [e[1] for e in self.graph.out_edges([e2])]:
@@ -308,7 +296,7 @@ class DbCollection:
                 
                 out_exon = out_exons[0]
                 
-                self.logger.info("ALT SPLICING {0} {1}".format(exon, out_exon))
+                self.logger.info("ALT SPLICING %s %s", exon, out_exon)
 
             #in_exons = [e[0] for e in self.graph.in_edges([exon])]
             #for in_exon in in_exons:
@@ -340,7 +328,7 @@ class DbCollection:
             nreads = self.db.nreads(identifier)
             if not nreads:
                 nreads = 1000000
-                self.logger.warn("Number of reads in db is 0 for {}".format(identifier))
+                self.logger.warn("Number of reads in db is 0 for %s", identifier)
             rpkms = [s * 1000.0 / nreads * 1e6 for s in all_exons]
             if idtype == "mean_exon":
                 if len(rpkms) == 0:
@@ -359,10 +347,9 @@ class DbCollection:
                 return signal[-1]
        
         elif idtype == "first_rpkm":
-            if transcript[0].strand == "+":
-                exon = transcript[0]
-                count = signal[0]
-            else:
+            exon = transcript[0]
+            count = signal[0]
+            if transcript[0].strand == "-":
                 exon = transcript[-1]
                 count = signal[-1]
 
@@ -410,7 +397,7 @@ class DbCollection:
     def max_weight(self, transcripts, identifier_weight):
         max_transcripts = 10000
         if len(transcripts) > max_transcripts:
-            self.logger.warn("More than {} transcripts, random sampling to a managable number".format(max_transcripts))
+            self.logger.warn("More than %s transcripts, random sampling to a managable number", max_transcripts)
             transcripts = random.sample(transcripts, max_transcripts)
         
         if not identifier_weight or len(identifier_weight) == 0:
@@ -424,9 +411,7 @@ class DbCollection:
                 identifier = iw["name"]
                 
                 idw = []
-                for i, transcript in enumerate(transcripts):
-                    #if i % 10000 == 0:
-                    #    self.logger.debug("{} transcripts processed, weight {}".format(i, identifier))
+                for transcript in transcripts:
                     tw = self.get_weight(transcript, identifier, idtype)
                     idw.append(pseudo + tw)
     
