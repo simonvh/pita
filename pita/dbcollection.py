@@ -231,7 +231,7 @@ class DbCollection(object):
                 self.logger.debug("Keeping this splice %s", splice)
                 continue
             if len(splice.evidences) <= evidence:
-                self.logger.debug("Checking splice %s", splice))
+                self.logger.debug("Checking splice %s", splice)
                 if self.is_weak_splice(splice, evidence):
                     self.logger.debug("Removing splice %s", splice)
                     for e1,e2 in self.db.get_junction_exons(splice):
