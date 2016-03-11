@@ -1,7 +1,7 @@
 from pita.dbcollection import DbCollection
 from pita.annotationdb import AnnotationDb
 from pita.io import TabixIteratorAsFile, read_gff_transcripts, read_bed_transcripts
-from pita.util import get_overlapping_models,longest_orf
+from pita.util import get_overlapping_models
 import logging
 import pysam
 from pita.config import SEP
@@ -44,11 +44,11 @@ def load_chrom_data(conn, new, chrom, anno_files, data, index=None):
         logger.exception("Error on %s", chrom)
         raise
 
-def get_chrom_models(conn, chrom, weight, repeats=None, prune=None, keep=None, filter=None, experimental=None):
+def get_chrom_models(conn, chrom, weight, repeats=None, prune=None, keep=None, filter_ev=None, experimental=None):
     if keep is None:
         keep = []
-    if filter is None:
-        filter = []
+    if filter_ev is None:
+        filter_ev = []
     if experimental is None:
         experimental = []
 
@@ -62,19 +62,19 @@ def get_chrom_models(conn, chrom, weight, repeats=None, prune=None, keep=None, f
             for x in repeats:
                 db.filter_repeats(chrom, x)
 
-        for ev in filter:
+        for ev in filter_ev:
             db.filter_evidence(chrom, ev, experimental) 
         
         mc = DbCollection(db, chrom)
         # Remove long exons with 2 or less evidence sources
         
-        if prune and prune.has_key("exons"):
+        if prune and "exons" in prune:
             l = prune["exons"]["length"]
             ev = prune["exons"]["evidence"]
             logger.debug("EXON PRUNE %s %s", l, ev)
             mc.filter_long(l=l, evidence=ev)
         
-        if prune and prune.has_key("introns"):
+        if prune and "introns" in prune:
             max_reads = prune["introns"]["max_reads"]
             ev = prune["introns"]["evidence"]
             logger.debug("EXON PRUNE %s %s", max_reads, ev)
@@ -129,7 +129,7 @@ def get_chrom_models(conn, chrom, weight, repeats=None, prune=None, keep=None, f
             for e1, e2 in overlap:
                 gene1 = exons[str(e1)][1]
                 gene2 = exons[str(e2)][1]
-                if not(discard.has_key(gene1) or discard.has_key(gene2)):
+                if not(gene1 in discard or gene2 in discard):
                     m1 = models[gene1][1]
                     m2 = models[gene2][1]
                 
