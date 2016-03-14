@@ -3,8 +3,8 @@ import sys
 import logging
 from gimmemotifs.genome_index import GenomeIndex
 from sqlalchemy import and_,func
-from sqlalchemy.orm import aliased
-from pita.db_backend import * 
+from pita.db_backend import create_engine,Base,scoped_session,sessionmaker,\
+    get_or_create,ReadSource,Feature,FeatureReadCount,Evidence,FeatureEvidence 
 from pita.util import read_statistics, get_splice_score
 import yaml
 from pita.io import exons_to_tabix_bed, tabix_overlap
@@ -52,15 +52,39 @@ class AnnotationDb(object):
     
     def dump_yaml(self):
         dump_dict = {}
-        dump_dict['feature'] = [[f.id, f.chrom.encode('ascii','ignore'), f.start, f.end, f.strand.encode('ascii','ignore'), f.ftype.encode('ascii','ignore'), f.seq.encode('ascii','ignore')] for f in self.session.query(Feature)]
+        dump_dict['feature'] = [
+                    [f.id, 
+                    f.chrom.encode('ascii','ignore'), 
+                    f.start, 
+                    f.end, 
+                    f.strand.encode('ascii','ignore'), 
+                    f.ftype.encode('ascii','ignore'), 
+                    f.seq.encode('ascii','ignore')] 
+                for f in self.session.query(Feature)]
         
-        dump_dict['read_source'] = [[r.id, r.name.encode('ascii','ignore'), r.source.encode('ascii','ignore'), r.nreads] for r in self.session.query(ReadSource)]
+        dump_dict['read_source'] = [
+                [r.id, 
+                    r.name.encode('ascii','ignore'), 
+                    r.source.encode('ascii','ignore'), 
+                    r.nreads] 
+                for r in self.session.query(ReadSource)]
 
-        dump_dict['read_count'] = [[r.read_source_id, r.feature_id, r.count,r.span.encode('ascii','ignore'),r.extend_up, r.extend_down] for r in self.session.query(FeatureReadCount)]
+        dump_dict['read_count'] = [
+                [r.read_source_id, 
+                    r.feature_id, 
+                    r.count,r.span.encode('ascii','ignore'),
+                    r.extend_up, 
+                    r.extend_down]
+                for r in self.session.query(FeatureReadCount)]
         
-        dump_dict['evidence'] = [[r.id, r.name.encode('ascii','ignore'), r.source.encode('ascii','ignore')] for r in self.session.query(Evidence)]
+        dump_dict['evidence'] = [
+                [r.id, r.name.encode('ascii','ignore'), 
+                    r.source.encode('ascii','ignore')] 
+                for r in self.session.query(Evidence)]
         
-        dump_dict['feature_evidence'] = [[r.feature_id, r.evidence_id] for r in self.session.query(FeatureEvidence)]
+        dump_dict['feature_evidence'] = [
+                [r.feature_id, r.evidence_id] 
+                for r in self.session.query(FeatureEvidence)]
 
         return yaml.dump(dump_dict)
     
@@ -86,7 +110,6 @@ class AnnotationDb(object):
          
         self.session.commit()
         
-       # print data['feature'][0][1:]
         first = self.fetch_feature(data['feature'][0][1:])
         last = self.fetch_feature(data['feature'][-1][1:])
     
@@ -96,7 +119,7 @@ class AnnotationDb(object):
             ]
         t = ["read_source_id", "feature_id", "count", "span", "extend_up", "extend_down"]
     
-        result = self.engine.execute(
+        self.engine.execute(
             FeatureReadCount.__table__.insert(),
             [dict(zip(t, row)) for row in data['read_count']]
             )
@@ -133,13 +156,13 @@ class AnnotationDb(object):
         for e1, e2 in zip(exons[:-1], exons[1:]):
             if e1[0] != e2[0]:
                 sys.stderr.write("{0} - {1}\n".format(e1, e2))
-                raise ValueError, "Different chromosomes!"
+                raise ValueError("Different chromosomes!")
             if e2[1] <= e1[2]:
                 sys.stderr.write("{0} - {1}\n".format(e1, e2))
-                raise ValueError, "exons overlap, or in wrong order"
+                raise ValueError("exons overlap, or in wrong order")
             if e1[3] != e2[3]:
                 sys.stderr.write("{0} - {1}\n".format(e1, e2))
-                raise ValueError, "strands don't match"
+                raise ValueError("strands don't match")
        
         chrom = exons[0][0]
         strand = exons[0][-1]
@@ -338,7 +361,7 @@ class AnnotationDb(object):
         chunk = 20
         for i in range(0, len(exon_ids), chunk):
             self.logger.warn("Filtering %s", exon_ids[i:i + chunk])
-            query = self.session.query(Feature).\
+            self.session.query(Feature).\
                     filter(Feature.id.in_(exon_ids[i:i + chunk])).\
                     update({Feature.flag:True}, synchronize_session=False)
             self.session.commit()
@@ -427,7 +450,7 @@ class AnnotationDb(object):
 
             estr = "{}:{}-{}".format(exon.chrom, start, end)
 
-            if estore.has_key(estr):
+            if estr in estore:
                 estore[estr].append(exon)
             else:
                 estore[estr] = [exon]
@@ -448,13 +471,13 @@ class AnnotationDb(object):
             self.logger.debug("Creating read_source for %s %s", name, fname)
             read_source = get_or_create(self.session, ReadSource, name=name, source=fname)
             self.session.commit() 
-            rmrepeats = False
+            #rmrepeats = False
             if fname.endswith("bam") and (not nreads or not nreads[i]):
-                rmrepeats = True
-                self.logger.debug("Counting reads in {0}".format(fname))
+                #rmrepeats = True
+                self.logger.debug("Counting reads in %s", fname)
                 read_source.nreads = read_statistics(fname)
 
-            self.logger.debug("Getting overlap from {0}".format(fname))
+            self.logger.debug("Getting overlap from %s", fname)
             result = get_binned_stats(tmp.name, fname, 1, rpkm=False, rmdup=False, rmrepeats=False)
 
             self.logger.debug("Reading results, save to exon stats")
@@ -479,10 +502,10 @@ class AnnotationDb(object):
         if type("") == type(fnames):
             fnames = [fnames]
 
-        nrsplice = {}
         for fname in fnames:
-            self.logger.debug("Getting splicing data from {0}".format(fname))
-            read_source = get_or_create(self.session, ReadSource, name=name, source=fname)
+            self.logger.debug("Getting splicing data from %s", fname)
+            read_source = get_or_create(self.session, 
+                    ReadSource, name=name, source=fname)
             self.session.commit()
             for line in open(fname):
                 vals = line.strip().split("\t")
@@ -540,8 +563,7 @@ class AnnotationDb(object):
         self.cache_splice_stats = {}
     
     def feature_stats(self, feature, identifier):
-        if not self.cache_feature_stats.has_key("{}{}".format(feature, identifier)):
-        
+        if "{}{}".format(feature, identifier) not in self.cache_feature_stats:
             q = self.session.query(FeatureReadCount, ReadSource).join(ReadSource)
             q = q.filter(FeatureReadCount.feature_id == feature.id)
             q = q.filter(ReadSource.name == identifier)
@@ -550,8 +572,7 @@ class AnnotationDb(object):
         return self.cache_feature_stats["{}{}".format(feature, identifier)]
 
     def splice_stats(self, exon1, exon2, identifier):
-        if not self.cache_splice_stats.has_key("{}{}{}".format(self, exon1, exon2)):
-        
+        if "{}{}{}".format(self, exon1, exon2) not in self.cache_splice_stats:
             q = self.session.query(Feature)
             q = q.filter(Feature.ftype == "splice_junction")
             q = q.filter(Feature.chrom == exon1.chrom)
