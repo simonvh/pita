@@ -24,6 +24,8 @@ setup (name = 'pita',
         author='Simon van Heeringen',
         author_email='s.vanheeringen@ncmls.ru.nl',
         license='MIT',
+        url = 'https://github.com/simonvh/pita',
+        download_url = 'https://github.com/simonvh/pita/tarball/1.73',
         packages=[
             'pita'
         ],
