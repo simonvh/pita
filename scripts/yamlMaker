@@ -25,7 +25,7 @@ def createObjects():
         entryType = raw_input("Annotation or Data entry (a/d) ")
         entry = {}
         entry["name"] = raw_input("Name: ")
-        path = getPath()
+        path = getPath("Path: ")
         paths.append(path)
         entry["path"] = getFiles(path)
         if entryType =='d':
@@ -58,11 +58,11 @@ def commonStart(sa, sb):
 """
 Makes autocompleting possible for the path adding
 """
-def getPath():
+def getPath(question):
     readline.set_completer_delims(' \t\n;')
     readline.parse_and_bind("tab: complete")
     readline.set_completer(complete)
-    return raw_input("Path: ")
+    return raw_input(question)
 
 """
 Detects if the specified path is a file or a folder
@@ -112,7 +112,7 @@ def writeObjects(outfile, consensusPath):
     file = open(outfile,"w")
 
     file.write("data_path: "+str(consensusPath))
-    file.write("maxent: "+ raw_input("Where is the maxentscan source code located? ")
+    file.write("maxent: "+ getPath("Where is the maxentscan source code located? ")
     file.write("\nannotation:\n")
     file.write(yaml.dump(annolist, default_flow_style=False))
     file.write("\ndata:\n")
