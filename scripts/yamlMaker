@@ -1,0 +1,141 @@
+#!/usr/bin/env python
+
+# Author: Joris van Steenbrugge
+# Last update: Mar 14 2016
+# Key functionality: creates a yaml file suitable as input for the Pita Pipeline
+
+import yaml
+import re
+import glob, readline
+import os, sys
+
+datalist=[]
+annolist=[]
+cwd = os.getcwd()
+
+"""
+Ask questions about the to be added entry
+"""
+def createObjects():
+    global datalist
+    global annolist
+    ask = True
+    paths = []
+    while ask:
+        entryType = raw_input("Annotation or Data entry (a/d) ")
+        entry = {}
+        entry["name"] = raw_input("Name: ")
+        path = getPath()
+        paths.append(path)
+        entry["path"] = getFiles(path)
+        if entryType =='d':
+            entry["feature"] = raw_input("Data feature (first/rpkm/etc.): ")
+            if raw_input("chipseq? (y/n) :") == 'y':
+                entry["up"] = 1000
+                entry["down"] = 1000
+
+            datalist.append(entry)
+        else:
+            entry["type"] = raw_input("Type: ")
+            annolist.append(entry)
+        ask = contin()
+        cls()        
+    return getPathconsensus(paths)
+
+def getPathconsensus(dirs):
+    while len(dirs) >=2:
+        v = commonStart(dirs[0],dirs[1])
+        dirs[0] = v
+        dirs.pop(1)
+    return dirs[0]
+
+def stopIter():
+    raise StopIteration
+
+def commonStart(sa, sb):
+    return ''.join(a if a == b else stopIter() for a, b in zip(sa, sb))
+        
+"""
+Makes autocompleting possible for the path adding
+"""
+def getPath():
+    readline.set_completer_delims(' \t\n;')
+    readline.parse_and_bind("tab: complete")
+    readline.set_completer(complete)
+    return raw_input("Path: ")
+
+"""
+Detects if the specified path is a file or a folder
+"""
+def getFiles(path):
+    m = re.search(r'\.[a-z]{3}$', path)
+    if m: #anno entry
+        return path
+    else: #data entry
+        return parseFolder(path)
+
+"""
+Makes autocompleting possible for the path adding
+"""
+def complete(text, state):
+    return (glob.glob(text+'*')+[None])[state]
+"""
+Clears the screen after each entry for better readability
+"""
+def cls():
+    os.system('cls' if os.name=='nt' else 'clear')
+
+"""
+This function is called when a folder is detected (instead of a file) and takes every bamfile in the folder
+"""
+def parseFolder(path):
+    os.chdir(path)
+    files = []
+    [files.append(file) for file in glob.glob("*.bam")]
+    return files
+
+"""
+Checks if the user wants to add another entry
+"""
+def contin():
+    answ = raw_input("Another entry? (y/n) ")
+    if answ == 'y':
+        return True
+    else:
+        return False
+
+"""
+Writes the objects in yaml format to the output file
+"""
+def writeObjects(outfile, consensusPath):
+    os.chdir(cwd)
+    file = open(outfile,"w")
+
+    file.write("data_path: "+str(consensusPath))
+    file.write("maxent: "+ raw_input("Where is the maxentscan source code located? ")
+    file.write("\nannotation:\n")
+    file.write(yaml.dump(annolist, default_flow_style=False))
+    file.write("\ndata:\n")
+    file.write(yaml.dump(datalist))
+
+"""
+Searches for the output fileName on the command line
+"""
+def parseArg():
+    if len(sys.argv) == 2:
+        return sys.argv[1]
+    else:
+        print("\nError: yamlMaker requires an output file")
+        sys.exit()
+"""
+Catches a keyboardInterrupt and writes the output thusfar to the specified output file.
+"""
+def main():
+    outfile = parseArg()
+    try:
+        consensusPath = createObjects()
+    except KeyboardInterrupt:
+        print("\nUser pressed exit, writing output to file")
+    else:
+        writeObjects(outfile, consensusPath)
+main()
