@@ -9,8 +9,9 @@ import re
 import glob, readline
 import os, sys
 
-datalist=[]
-annolist=[]
+datalist =[]
+annolist= []
+scoring = []
 cwd = os.getcwd()
 
 """
@@ -24,16 +25,18 @@ def createObjects():
     while ask:
         entryType = raw_input("Annotation or Data entry (a/d) ")
         entry = {}
-        entry["name"] = raw_input("Name: ")
+        name = raw_input("Name: ")
+        entry["name"] = name
         path = getPath("Path: ")
         paths.append(path)
         entry["path"] = getFiles(path)
         if entryType =='d':
-            entry["feature"] = raw_input("Data feature (first/rpkm/etc.): ")
+            feature = raw_input("Data feature (first/rpkm/etc.): ")
+            entry["feature"] = feature
             if raw_input("chipseq? (y/n) :") == 'y':
                 entry["up"] = 1000
                 entry["down"] = 1000
-
+            addScoring(name, feature)
             datalist.append(entry)
         else:
             entry["type"] = raw_input("Type: ")
@@ -55,6 +58,12 @@ def stopIter():
 def commonStart(sa, sb):
     return ''.join(a if a == b else stopIter() for a, b in zip(sa, sb))
         
+def addScoring(name, type):
+    entry = {}
+    entry["name"] =name
+    entry["weight"] = int(raw_input("Scoring weight: "))
+    entry["type"] = type
+    scoring.append(entry)
 """
 Makes autocompleting possible for the path adding
 """
@@ -112,12 +121,14 @@ def writeObjects(outfile, consensusPath):
     file = open(outfile,"w")
 
     file.write("data_path: "+str(consensusPath))
-    file.write("maxent: "+ getPath("Where is the maxentscan source code located? ")
+    file.write("\nmaxent: "+ getPath("Where is the maxentscan source code located? "))
+    file.write("\ndatabase: sqlite:///pita_database.db\n")
     file.write("\nannotation:\n")
     file.write(yaml.dump(annolist, default_flow_style=False))
     file.write("\ndata:\n")
     file.write(yaml.dump(datalist))
-
+    file.write("\nscoring:\n")
+    file.write(yaml.dump(scoring, default_flow_style=False))
 """
 Searches for the output fileName on the command line
 """
@@ -136,6 +147,7 @@ def main():
         consensusPath = createObjects()
     except KeyboardInterrupt:
         print("\nUser pressed exit, writing output to file")
-    else:
         writeObjects(outfile, consensusPath)
+    else:
+        writeObjects(outfile,consensusPath)
 main()
