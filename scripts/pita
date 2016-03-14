@@ -111,7 +111,7 @@ def listener(q, lock=None):
         logger.debug("calling print_output for {0}".format(genename))
         print_output(genename, exons, lock)
 
-def annotate_chrom(chrom, conn, q, anno_files, data, repeats, weight, prune, keep, filter, experimental, index, reannotate):
+def annotate_chrom(chrom, conn, q, anno_files, data, repeats, weight, prune, keep, filter_ev, experimental, index, reannotate):
     new = False
     if conn.startswith("sqlite"):
         conn += ".{}".format(chrom)
@@ -120,7 +120,7 @@ def annotate_chrom(chrom, conn, q, anno_files, data, repeats, weight, prune, kee
     logger.info("Chromosome {0} started".format(chrom))
     if not reannotate:
         load_chrom_data(conn, new, chrom, anno_files, data, index)
-    for genename, best_exons in get_chrom_models(conn, chrom, weight, repeats, prune, keep, filter, experimental):
+    for genename, best_exons in get_chrom_models(conn, chrom, weight, repeats, prune, keep, filter_ev, experimental):
         #results.append([genename, best_exons])
         logger.debug("Putting {0} in print queue".format(genename))
         q.put([genename, best_exons])
@@ -144,7 +144,7 @@ if threads > 1:
         watcher = pool.apply_async(listener, args=(q, lock) )
         
         # do the main work 
-        partialAnnotate = partial(annotate_chrom, conn=config.db_conn, q=q, anno_files=config.anno_files, data=config.data, repeats=config.repeats, weight=config.weight, prune=config.prune, keep=config.keep, filter=config.filter, experimental=config.experimental, index=index, reannotate=args.reannotate)
+        partialAnnotate = partial(annotate_chrom, conn=config.db_conn, q=q, anno_files=config.anno_files, data=config.data, repeats=config.repeats, weight=config.weight, prune=config.prune, keep=config.keep, filter_ev=config.filter, experimental=config.experimental, index=index, reannotate=args.reannotate)
         pool.map(partialAnnotate, chroms) 
         
         # kill the queue!
@@ -160,7 +160,7 @@ else:
     for chrom in chroms:
         if not args.reannotate:
             load_chrom_data(config.db_conn, True, chrom, config.anno_files, config.data,index)
-        for genename, best_exons in get_chrom_models(config.db_conn, chrom, config.weight, repeats=config.repeats, prune=config.prune, keep=config.keep, filter=config.filter, experimental=config.experimental):
+        for genename, best_exons in get_chrom_models(config.db_conn, chrom, config.weight, repeats=config.repeats, prune=config.prune, keep=config.keep, filter_ev=config.filter, experimental=config.experimental):
             print_output(genename, best_exons)
 
 cdna_fh.close()

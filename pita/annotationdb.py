@@ -3,8 +3,10 @@ import sys
 import logging
 from gimmemotifs.genome_index import GenomeIndex
 from sqlalchemy import and_,func
-from pita.db_backend import create_engine,Base,scoped_session,sessionmaker,\
-    get_or_create,ReadSource,Feature,FeatureReadCount,Evidence,FeatureEvidence 
+from sqlalchemy import create_engine
+from sqlalchemy.orm import scoped_session,sessionmaker
+from pita.db_backend import Base,get_or_create,ReadSource,Feature,\
+        FeatureReadCount,Evidence,FeatureEvidence 
 from pita.util import read_statistics, get_splice_score
 import yaml
 from pita.io import exons_to_tabix_bed, tabix_overlap

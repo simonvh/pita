@@ -1,9 +1,9 @@
+from warnings import warn
 from sqlalchemy import Column, ForeignKey, Integer, String, Text, UniqueConstraint, Boolean
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import relationship,sessionmaker,mapper,scoped_session
-from sqlalchemy import create_engine, and_, event
+from sqlalchemy.orm import relationship,sessionmaker,scoped_session
+from sqlalchemy import and_, event
 from sqlalchemy.ext.associationproxy import association_proxy
-from sqlalchemy.inspection import inspect
 from pita.exon import Exon
 
 Base = declarative_base()
@@ -59,6 +59,9 @@ class Feature(Base):
         return e
 
     def overlap(self, exon, strand=True, fraction=False):
+        if fraction:
+            warn("the 'fraction' argument in overlap is not yet implemented")
+
         if strand and self.strand != exon.strand:
             return 0
         if exon.start >= self.start and exon.start <= self.end:
