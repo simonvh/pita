@@ -9,3 +9,4 @@ Pita Documentation
 	installation	
 	pipelineData
 	usage
+	scripts
