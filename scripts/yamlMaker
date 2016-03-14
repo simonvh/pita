@@ -64,6 +64,7 @@ def addScoring(name, type):
     entry["weight"] = int(raw_input("Scoring weight: "))
     entry["type"] = type
     scoring.append(entry)
+    
 """
 Makes autocompleting possible for the path adding
 """
@@ -88,6 +89,7 @@ Makes autocompleting possible for the path adding
 """
 def complete(text, state):
     return (glob.glob(text+'*')+[None])[state]
+    
 """
 Clears the screen after each entry for better readability
 """
@@ -129,6 +131,7 @@ def writeObjects(outfile, consensusPath):
     file.write(yaml.dump(datalist))
     file.write("\nscoring:\n")
     file.write(yaml.dump(scoring, default_flow_style=False))
+    
 """
 Searches for the output fileName on the command line
 """
@@ -138,6 +141,7 @@ def parseArg():
     else:
         print("\nError: yamlMaker requires an output file")
         sys.exit()
+        
 """
 Catches a keyboardInterrupt and writes the output thusfar to the specified output file.
 """
