@@ -1,6 +1,10 @@
 pita improves transcript annotation 
 ===================================
 
+[![Build Status](https://travis-ci.org/simonvh/pita.svg?branch=master)](https://travis-ci.org/simonvh/pita)
+[![Code Health](https://landscape.io/github/simonvh/pita/master/landscape.svg?style=flat)](https://landscape.io/github/simonvh/pita/master)
+
+
 Pipeline to improve transcript annotation based on RNA-seq and ChIP-seq data.
 
 The current version has been used to annotate the Xenopus laevis genome based on experimental data.
