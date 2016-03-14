@@ -243,15 +243,12 @@ class DbCollection(object):
                                     self.graph.remove_node(node)
    
     def filter_long(self, l=1000, evidence=2):
-        #print "HOIE"
         for exon in self.db.get_long_exons(self.chrom, l, evidence):
             out_edges = len(self.graph.out_edges([exon]))
             in_edges = len(self.graph.in_edges([exon]))
             self.logger.debug("Filter long: %s, in %s out %s", exon, in_edges, out_edges)
 
-            #print exon, exon.strand, in_edges, out_edges
             if in_edges >= 0 and out_edges >= 1 and exon.strand == "+" or in_edges >= 1 and out_edges >= 0 and exon.strand == "-":
-                #print "Removing", exon
                 self.logger.info("Removing long exon %s", exon)
                 self.graph.remove_node(exon)
     

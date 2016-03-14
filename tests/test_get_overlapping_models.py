@@ -8,16 +8,21 @@ def bedfile():
 def linkfile():
     return "tests/data/test_linkage.bed"
 
-def test_get_overlapping_models(bedfile):
-    from pita.collection import Collection
+@pytest.fixture
+def db():
+    from pita.annotationdb import AnnotationDb
+    db = AnnotationDb(conn="sqlite:///pita_test_database.db",
+            new=True)
+    return db
+
+def test_get_overlapping_models(db, bedfile):
     from pita.io import read_bed_transcripts
     from pita.util import get_overlapping_models
-    mc = Collection()
 
     for tname, source, exons in read_bed_transcripts(open(bedfile), "test", 0):
-        mc.add_transcript("{0}{1}{2}".format("test", ":::", tname), source, exons)
+        db.add_transcript("{0}{1}{2}".format("test", ":::", tname), source, exons)
 
-    exons = mc.get_exons("JGIv7b.000000226")
+    exons = db.get_exons("JGIv7b.000000226")
     
     assert 72 == len(get_overlapping_models(exons))
 

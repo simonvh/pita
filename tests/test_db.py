@@ -75,17 +75,19 @@ def transcripts():
     return transcripts
 
 @pytest.yield_fixture
-def db(transcripts):
+def db(tmpdir, transcripts):
     from pita.annotationdb import AnnotationDb
-    with AnnotationDb(conn="sqlite:////tmp/pita_test.db", new=True) as d:
+    conn = "sqlite:///{}/pita_test.db".format(tmpdir)
+    with AnnotationDb(conn=conn, new=True) as d:
         for name, source, exons in transcripts:
             d.add_transcript(name, source, exons)
         yield d
 
 @pytest.yield_fixture
-def empty_db():
+def empty_db(tmpdir):
     from pita.annotationdb import AnnotationDb
-    with AnnotationDb(conn="sqlite:////tmp/pita_test.db", new=True) as d:
+    conn = "sqlite:///{}/pita_test.db".format(tmpdir)
+    with AnnotationDb(conn=conn, new=True) as d:
         yield d
 #scaffold_1  18070000    18080000    64
 #scaffold_1  18080000    18200000    1092

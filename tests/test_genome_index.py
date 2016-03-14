@@ -14,15 +14,24 @@ def loc_and_seq():
     return ("scaffold_54", 141483, 141492, "+"), "GTCTATGGG"
 
 @pytest.fixture
-def collection(index_dir):
-    from pita.collection import Collection
+def db(tmpdir, index_dir):
+    from pita.annotationdb import AnnotationDb
+    conn = "sqlite:///{}/pita_test_database.db".format(tmpdir)
+    db = AnnotationDb(conn=conn,
+            new=True,
+            index=index_dir)
+    return db
+
+@pytest.fixture
+def collection(db):
+    from pita.dbcollection import DbCollection
     from pita.io import read_bed_transcripts
-    mc = Collection(index_dir)
 
     bed = "tests/data/scaffold_54_genes.bed"
     for tname, source, exons in read_bed_transcripts(open(bed), "test", 0):
-        mc.add_transcript("{0}{1}{2}".format("test", ":::", tname), source, exons)
+        db.add_transcript("{0}{1}{2}".format("test", ":::", tname), source, exons)
     
+    mc = DbCollection(db)
     return mc
 
 @pytest.fixture
