@@ -2,7 +2,7 @@ from distutils.core import setup
 from setuptools.command.test import test as TestCommand
 import sys
 
-VERSION = "1.73.2"
+VERSION = "1.73.3"
 DESCRIPTION = """
 pita - pita improves transcript annotation
 """
@@ -39,9 +39,9 @@ setup (name = 'pita',
         ],
         data_files=[],
         tests_require=['pytest'],
-        dependency_links = [
-            'https://github.com/simonvh/gimmemotifs/archive/0.8.7.tar.gz#egg=gimmemotifs-0.8.7',
-            ],
+      #  dependency_links = [
+       #     'https://github.com/simonvh/gimmemotifs/archive/0.8.7.tar.gz#egg=gimmemotifs-0.8.7',
+      #      ],
         install_requires=[
                         "numpy",
                         "SQLAlchemy",
