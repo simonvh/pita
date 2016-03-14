@@ -1,3 +1,4 @@
+from sqlalchemy import create_engine
 from pita.db_backend import *
 
 def db_session(conn, new=False):
