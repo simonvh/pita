@@ -16,6 +16,10 @@ Required packages
 
   Python package, providing data structures and analysis tools (installable with pip).
 
+- Numpy 
+
+  NumPy is a fundamental package for scientific computing with Python
+
 - Fluff v1.62
 
   Fluff is a python package that contains several scripts to produce publication-quality figures for next 
@@ -26,21 +30,23 @@ Required packages
 Using pip
 ---------
 
-The most straightforward option is installing with pip. Pita is not yet officially hosted on PyPi (this option will be available soon) but can be installed using pip with the following command:
+The most straightforward option is installing with pip. Pita is now officially hosted on PyPi and can be installed using pip 
+with the following command:
 
 ::
 
-	$ sudo pip install git+https://github.com/simonvh/pita
+	$ sudo pip install pita
 
 Using pip in a virtualenv
 --------------------------
-If you don't have root acces (for example when working on a server) pita can be easily installed in a virtual environment using the following commands.
+If you don't have root acces (for example when working on a server) pita can be easily installed in a virtual environment 
+using the following commands.
 
 ::
 
 	$ virtualenv pitaEnv
 	$ source pitaEnv/bin/activate
-	$ pip install git+https://github.com/simonvh/pita
+	$ pip install pita
 
 
 Installation from source
@@ -49,7 +55,7 @@ Installation from source
 ::
 
 	# install prerequisites
-	$ git clone git@github.com/simonvh/pita.git
+	$ git clone https://github.com/simonvh/pita.git
 	$ cd pita
 	$ python setup.py test
 	$ sudo python setup.py install
