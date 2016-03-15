@@ -18,7 +18,8 @@ Required packages
 
 - Fluff v1.62
 
-  Fluff is a python package that contains several scripts to produce publication-quality figures for next g$
+  Fluff is a python package that contains several scripts to produce publication-quality figures for next 
+  generation sequencing data.
   The source is available on github `<https://github.com/simonvh/fluff>`_
 
 
