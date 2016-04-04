@@ -11,14 +11,17 @@ from tempfile import NamedTemporaryFile
 p = argparse.ArgumentParser()
 p.add_argument("-c",
                dest= "configfile",
+               required= True,
                help="Input configuration file"
               )
 p.add_argument("-b",
                dest= "bedfile",
+               required= True,
                help="BED file with regions",
               )
 p.add_argument("-o",
                dest= "output",
+               required= True,
                help="Output name"
               )
 
@@ -27,9 +30,6 @@ configfile = args.configfile
 bedfile = args.bedfile
 outname = args.output
 
-if not (configfile and bedfile and outname):
-    p.print_help()
-    sys.exit()
 
 # Parse YAML config file
 f = open(configfile, "r")
