@@ -17,7 +17,7 @@ def _create_tabix(fname, ftype):
     if ftype == "bed":
         cmd = "sort -k1,1 -k2g,2 {0} | grep -v track | grep -v \"^#\" > {1}"
         preset = "bed"
-    elif ftype in ["gff", "gff3", "gtf3"]:
+    elif ftype in ["gff", "gff3", "gtf"]:
         cmd = "sort -k1,1 -k4g,4 {0} | grep -v \"^#\" > {1}"
 
     # Sort the input file
