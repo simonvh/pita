@@ -172,7 +172,12 @@ def get_splice_score(a, s_type=5):
     for line in p.stdout.readlines():
         vals = line.strip().split("\t")
         if len(vals) > 1:
-            score += float(vals[-1])
+            try:
+                score += float(vals[-1])
+            except ValueError:
+                logger.error("valueError, skipping: {}".format(vals))
+            except:
+                logger.error("Something unexpected happened")
     return score
 
 def bed2exonbed(inbed, outbed):
