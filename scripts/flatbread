@@ -83,11 +83,10 @@ for f in config['data']:
     remove = []
     for rel_p in f['path']:
         p = rel_p
-        if not os.path.exists(p):
-            p = os.path.join(base, p)
+        if not os.path.exists(p):           
+           p = os.path.join(base, p)
         out = os.path.join(outname, os.path.basename(p))
         sys.stderr.write("Filtering {0}\n".format(p)) 
-
         if p.endswith("bam"):
             tmp = NamedTemporaryFile(prefix="pita.flatbread.")
             cmd = "samtools view -H {0} > {1}".format(p, tmp.name)
@@ -96,17 +95,15 @@ for f in config['data']:
                 vals = line.strip().split()
                 loc = "{0}:{1}-{2}".format(vals[0], vals[1], vals[2])
                 cmd = "samtools view {0} {1} >> {2}".format(p, loc, tmp.name)
-                sp.call(cmd, shell=True) 
-            
+                sp.call(cmd, shell=True)             
             cmd = "samtools view -S {0} | head -n 1".format(tmp.name)
             pop = sp.Popen(cmd, shell=True, stdout=sp.PIPE, stderr=sp.PIPE)
             stdout, stderr = pop.communicate()
             if stdout.strip():
-            
                 cmd = "samtools view -bS {0} > {1} && mv {1} {0}"
                 sp.call(cmd.format(tmp.name, out), shell=True)
-                cmd = "samtools sort {0} {1} && samtools index {2}" 
-                sp.call(cmd.format(tmp.name, out.replace(".bam", ""), out), shell=True)
+                cmd = "samtools sort {0} {1} && samtools index {2}".format(tmp.name, out.replace(".bam", ""), out)          
+                sp.call(cmd, shell=True)
                 tmp.close()
             else:
                 sys.stderr.write("{} does not contain reads in these regions, leaving it out.\n".format(rel_p))
@@ -116,9 +113,12 @@ for f in config['data']:
             a = pybedtools.BedTool(p)
             b = pybedtools.BedTool(bedfile)
             a.intersect(b, wa=True).saveas(out)
+    corrPaths = [os.path.basename(x) for x in f['path']]    
+    f['path'] = corrPaths
     for p in remove:
         f['path'].remove(p)
 
+#d["data"] = ["path":"/home/joris","type":"gff","name":"xenbase"]    
 config["data_path"] = os.path.abspath(outname)
 
 with open("{0}.yaml".format(outname), "w") as f:
