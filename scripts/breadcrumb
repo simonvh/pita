@@ -1,34 +1,46 @@
 #!/usr/bin/env python
-# Create test set for use with pita
+# Devide data/annotation files in smaller subsets for use with pita
 import os
 import sys
 import yaml
+import subprocess as sp
+from tempfile import NamedTemporaryFile as ntp
 import argparse
 import random
 
 p = argparse.ArgumentParser()
 p.add_argument("-c",
                dest= "configfile",
-               help="Input configuration file"
+               help="Input configuration file",
+               required=True
               )
 p.add_argument("-n",
                dest= "numchroms",
                type=int,
                help="Number of chromosomes / regions per file",
               )
+p.add_argument("-b",
+                dest="baseRegion",
+                type=int,
+                help="Number of basepairs / regions per file in megabases"
+              )
+p.add_argument("-s",
+                dest="chrSizes",
+                help="File with chromosome sizes (Ncbi format), only required in combination with -b flag"
+              )
 p.add_argument("-o",
                dest= "output",
-               help="Output base name"
+               help="Output base name",
+               required=True
               )
 
 args = p.parse_args()
 configfile = args.configfile
 numchroms = args.numchroms
+sizes = args.chrSizes
 outname = args.output
+baseRegion = args.baseRegion * 1000000
 
-if not (configfile and numchroms and outname):
-    p.print_help()
-    sys.exit()
 
 # Parse YAML config file
 f = open(configfile, "r")
@@ -41,11 +53,41 @@ else:
     print("Output path {0} already exists!".format(outname))
     sys.exit(1)
 
-# Get chromosomes from BED file
-chroms = config["chromosomes"] 
-random.shuffle(chroms)
 
-for i in range(0, len(chroms), numchroms):
-    config['chromosomes'] = chroms[i: i + numchroms]
-    with open("{0}/{0}_part_{1}.yaml".format(outname, (i / numchroms) + 1), "w") as f:
-        f.write(yaml.dump(config))
+
+def parseSizeFile(sizes):
+    dic = {}
+    with open(sizes) as sizeFile:
+        for i in sizeFile:
+            line = i.strip().split("\t")
+            dic[line[0]] = int(line[1])
+    return dic
+
+
+
+chroms = config["chromosomes"]
+
+if numchroms:
+    random.shuffle(chroms)
+    for i in range(0, len(chroms), numchroms):
+        config['chromosomes'] = chroms[i: i + numchroms]
+        with open("{0}/{0}_part_{1}.yaml".format(outname, (i / numchroms) + 1), "w") as f:
+            f.write(yaml.dump(config))
+
+elif baseRegion:
+    dic = parseSizeFile(sizes)
+    for i in chroms:
+        size = dic[i]
+        count = 1
+        for y in range(0, size, baseRegion):
+            start = y
+            stop = y + baseRegion
+            if stop > size:
+                stop = size
+            tmpFile = ntp(delete=True)
+            tmpFile.write("{}\t{}\t{}".format(i,start,stop))
+            cmd = "flatbread -c {0} -b {1} -o {2}/{2}_part_{3}".format(configfile, tmpFile.name, outname,str(count))
+            sp.call(cmd, shell=True)
+            count+=1
+            tmpFile.close() 
+
