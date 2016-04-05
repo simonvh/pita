@@ -486,12 +486,14 @@ class AnnotationDb(object):
 
             insert_vals = []
             for row in result:
-                vals = row.strip().split("\t")
-                e = "%s:%s-%s" % (vals[0], vals[1], vals[2])
-                c = float(vals[3])
-                for exon in estore[e]:
-                    insert_vals.append([read_source.id, exon.id, c, span, extend[0], extend[1]])
-            
+                try:
+                    vals = row.strip().split("\t")
+                    e = "%s:%s-%s" % (vals[0], vals[1], vals[2])
+                    c = float(vals[3])
+                    for exon in estore[e]:
+                        insert_vals.append([read_source.id, exon.id, c, span, extend[0], extend[1]])
+                except:
+                    logger.info("binned_stat line skipped: {}".format(row))
             t =  ["read_source_id", "feature_id", "count", "span", "extend_up", "extend_down"]
             result = self.engine.execute(
                     FeatureReadCount.__table__.insert(),
