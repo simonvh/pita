@@ -118,7 +118,6 @@ for f in config['data']:
     for p in remove:
         f['path'].remove(p)
 
-#d["data"] = ["path":"/home/joris","type":"gff","name":"xenbase"]    
 config["data_path"] = os.path.abspath(outname)
 
 with open("{0}.yaml".format(outname), "w") as f:
