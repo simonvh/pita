@@ -7,6 +7,7 @@ import subprocess as sp
 from tempfile import NamedTemporaryFile as ntp
 import argparse
 import random
+import pybedtools
 
 p = argparse.ArgumentParser()
 p.add_argument("-c",
@@ -53,6 +54,10 @@ else:
     print("Output path {0} already exists!".format(outname))
     sys.exit(1)
 
+# Data directory
+base = "."
+if config.has_key("data_path"):
+    base = config["data_path"]
 
 
 def parseSizeFile(sizes):
@@ -63,9 +68,37 @@ def parseSizeFile(sizes):
             dic[line[0]] = int(line[1])
     return dic
 
+#Merges all annotation file so the regions can be determined better later
+def readAnnotation(annotation):
+    combinedFile = ntp(delete=True)
+    mergedSorted = ntp(delete=False)
+    for i in annotation:
+        path = i["path"]
+        kind = i["type"]
+        if not os.path.exists(path):
+            path = os.path.join(base,path)
+        if not os.path.exists(path):
+            print("File not found: {}".format(path))
+            sys.exit(1)
+        if "bed" in kind:
+            sp.call("cat {} >> {}".format(path, combinedFile.name), shell=True)
+    sortMerge = "bedtools sort -i {} | bedtools merge -i - > {}".format(combinedFile.name, mergedSorted.name)
+    sp.call(sortMerge, shell=True)
+    combinedFile.close()
+    return mergedSorted.name
+                                                                                            
+#Compare the baseRegion with the actual annotation regions to make sure no intersesting regions are cutoff 
+def intersect(msorted, region):
+    out = ntp(delete=False)
+    a = pybedtools.BedTool(msorted)
+    b = pybedtools.BedTool(region)
+    a.intersect(b, wa=True).saveas(out.name)
+    return out.name
 
 
 chroms = config["chromosomes"]
+anno = config["annotation"]
+msorted = readAnnotation(anno)
 
 if numchroms:
     random.shuffle(chroms)
@@ -84,10 +117,14 @@ elif baseRegion:
             stop = y + baseRegion
             if stop > size:
                 stop = size
-            tmpFile = ntp(delete=True)
-            tmpFile.write("{}\t{}\t{}".format(i,start,stop))
-            cmd = "flatbread -c {0} -b {1} -o {2}/{2}_part_{3}".format(configfile, tmpFile.name, outname,str(count))
-            sp.call(cmd, shell=True)
-            count+=1
-            tmpFile.close() 
+            tmpFile = ntp(delete=False)
+            tmpFile.write("{}\t{}\t{}".format(i,start,stop)) # file with the raw baseRegion for intersection
+            tmpFile.flush()
 
+            #Getting the more sophisticated regions, based on the merged annotation
+            correctRegions = intersect(msorted, tmpFile.name)
+            tmpFile.close()
+            
+            cmd = "flatbread -c {0} -b {1} -o {2}/{2}_part_{3}".format(configfile, correctRegions, outname,str(count))
+            sp.call(cmd, shell=True)
+            count+=1 
