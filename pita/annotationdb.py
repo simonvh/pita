@@ -615,8 +615,10 @@ class AnnotationDb(object):
                 filter(Feature.start == start).\
                 filter(Feature.end == end).\
                 filter(Feature.strand == strand).\
-                filter(Feature.ftype == ftype).\
-                filter(Feature.seq == seq)
+                filter(Feature.ftype == ftype)
+                
+        if seq:
+            feature = feature.filter(Feature.seq == seq)
         result = feature.first()
         return result
     

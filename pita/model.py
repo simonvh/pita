@@ -86,31 +86,21 @@ def get_chrom_models(conn, chrom, weight, repeats=None, prune=None, keep=None, f
         models = {}
         exons = {}
         logger.info("Calling transcripts for %s", chrom)
-        for cluster in mc.get_connected_models():
-            logger.debug("%s: got cluster", chrom)
-            while len(cluster) > 0:
-                #logger.debug("best model")
-                best_model = mc.max_weight(cluster, weight)
-                logger.debug("%s: got best model", chrom)
-                best_model = mc.get_best_variant(best_model, weight) 
-                logger.debug("%s: got best variant", chrom)
-                genename = "{0}:{1}-{2}_".format(
-                                            best_model[0].chrom,
-                                            best_model[0].start,
-                                            best_model[-1].end,
-                                            )
+        for model in mc.get_best_variants(weight):
+            genename = "{0}:{1}-{2}_".format(
+                                        model[0].chrom,
+                                        model[0].start,
+                                        model[-1].end,
+                                        )
                    
                 
-                logger.info("Best model: %s with %s exons", 
-                        genename, len(best_model))
-                models[genename] = [genename, best_model]
+            logger.info("Best model: %s with %s exons", 
+                    genename, len(model))
+            models[genename] = [genename, model]
             
-                for exon in best_model:
-                    exons[str(exon)] = [exon, genename]
-       
-                for i in range(len(cluster) - 1, -1, -1):
-                    if cluster[i][0].start <= best_model[-1].end and cluster[i][-1].end >= best_model[0].start:
-                        del cluster[i]    
+            for exon in model:
+                exons[str(exon)] = [exon, genename]
+
         discard = {}
         if prune:
             #logger.debug("Prune: {0}".format(prune))

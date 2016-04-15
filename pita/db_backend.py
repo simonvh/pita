@@ -53,6 +53,24 @@ class Feature(Base):
                 self.start, self.strand, self.end
                 )
     
+    def in_node(self):
+        if self.strand == "+":
+            return "{}:{}{}_{}".format(
+                    self.chrom, self.start, self.strand, self.ftype + "_in")
+        else: 
+            return "{}:{}{}_{}".format(
+                    self.chrom, self.end, self.strand, self.ftype + "_in")
+    
+    def out_node(self):
+        if self.strand == "-":
+            return "{}:{}{}_{}".format(
+                    self.chrom, self.start, self.strand, self.ftype + "_out")
+        else: 
+            return "{}:{}{}_{}".format(
+                    self.chrom, self.end, self.strand, self.ftype + "_out")
+  
+
+        
     def to_flat_exon(self):
         e = Exon(self.chrom, self.start, self.end, self.strand)
         e.seq = self.seq
