@@ -65,7 +65,7 @@ def get_chrom_models(conn, chrom, weight, repeats=None, prune=None, keep=None, f
         for ev in filter_ev:
             db.filter_evidence(chrom, ev, experimental) 
         
-        mc = DbCollection(db, chrom)
+        mc = DbCollection(db, weight, chrom)
         # Remove long exons with 2 or less evidence sources
         
         if prune and "exons" in prune:
@@ -103,7 +103,7 @@ def get_chrom_models(conn, chrom, weight, repeats=None, prune=None, keep=None, f
 
         discard = {}
         if prune:
-            #logger.debug("Prune: {0}".format(prune))
+            logger.debug("Prune: {0}".format(prune))
             overlap = get_overlapping_models([x[0] for x in exons.values()])
             if len(overlap) > 1:
                 logger.info("%s overlapping exons", len(overlap))
@@ -147,8 +147,8 @@ def get_chrom_models(conn, chrom, weight, repeats=None, prune=None, keep=None, f
                     w2 = 0.0
                     for d in prune["overlap"]["weights"]:
                         logger.debug("Pruning overlap: %s", d)
-                        tmp_w1 = mc.get_weight(m1)
-                        tmp_w2 = mc.get_weight(m2)
+                        tmp_w1 = -mc.get_weight(m1)
+                        tmp_w2 = -mc.get_weight(m2)
                         m = max((tmp_w1, tmp_w2))
                         if m > 0:
                             w1 += tmp_w1 / max((tmp_w1, tmp_w2))
@@ -163,7 +163,7 @@ def get_chrom_models(conn, chrom, weight, repeats=None, prune=None, keep=None, f
         
         logger.info("Done calling transcripts for %s", chrom)
         result = [v for m,v in models.items() if not m in discard]
-        print "VV", result
+        #print "VV", result
         return [[name, [e.to_flat_exon() for e in exons]] for name, exons in result]
 
     except:

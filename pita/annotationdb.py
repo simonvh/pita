@@ -269,8 +269,12 @@ class AnnotationDb(object):
 
             for splice in fs:
                 self.logger.debug("Considering %s", splice)        
+                for evidence in splice.evidences:
+                    self.logger.debug(str(evidence))
                 if len(splice.evidences) >= ev_count:
                     features.append(splice)
+                else:
+                    self.logger.debug("not enough evidence for {}".format(splice))
             
             fs = self.session.query(Feature).\
                     filter(Feature.flag.op("IS NOT")(True)).\
@@ -282,10 +286,14 @@ class AnnotationDb(object):
 
             for splice in fs:
                 self.logger.debug("Considering %s (no reads)", splice)        
+                for evidence in splice.evidences:
+                    self.logger.debug(str(evidence))
                 if len(splice.evidences) >= ev_count:
                     features.append(splice)
+                else:
+                    self.logger.debug("not enough evidence for {}".format(splice))
 
-            # All splcies with more than x reads
+            # All splices with more than x reads
             fs = self.session.query(Feature).\
                     filter(Feature.flag.op("IS NOT")(True)).\
                     filter(Feature.ftype == "splice_junction").\

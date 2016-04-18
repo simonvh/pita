@@ -11,7 +11,7 @@ from networkx.algorithms.flow import edmonds_karp
 from pita.util import longest_orf,exons_to_seq
 
 class DbCollection(object):
-    def __init__(self, db, chrom=None):
+    def __init__(self, db, weights, chrom=None):
         # dict with chrom as key
         self.logger = logging.getLogger("pita")
         
@@ -27,26 +27,32 @@ class DbCollection(object):
         # Store extension used in BAM statistics
         self.extend = {}
 
+        # store maximum weight per type
+        self.max_id_value = {}
+        for iw in weights:
+            identifier = iw["name"]
+            self.max_id_value[identifier] = 0
+ 
         self.logger.debug("Loading exons in graph")
         for exon in self.db.get_exons(chrom, eager=True):
-            self.add_feature(exon)
+            self.add_feature(exon, weights)
         
         self.logger.debug("Loading introns in graph")
         n = 0
         #for junction in self.db.get_splice_junctions(chrom, ev_count=1, read_count=20):
-        for junction in self.db.get_splice_junctions(chrom, ev_count=0, read_count=1, eager=True):
+        for junction in self.db.get_splice_junctions(chrom, ev_count=2, read_count=10, eager=True):
             n += 1
-            self.add_feature(junction)
+            self.add_feature(junction, weights)
         self.logger.debug("%s introns were loaded", n)
 
-        self.max_id_value = {}
 
-    def add_feature(self, feature):
+    def add_feature(self, feature, weights):
         """ 
+        Add feature to the graph
         """
 
+        # Exon
         if feature.ftype == "exon":
-            # Add chromosome to keys
             nodes = [
                 (feature.in_node(), "exon_in"), 
                 (feature.out_node(), "exon_out"),
@@ -55,17 +61,15 @@ class DbCollection(object):
                 f = self.graph.add_node(node, ftype=ftype)
             self.graph.add_path([n[0] for n in nodes], 
                     weight=-1, ftype='exon')
-            self._set_edge_weight(feature, nodes[0][0], nodes[1][0], {})
+            self._set_edge_weight(feature, nodes[0][0], nodes[1][0], weights)
+        # Intron
         elif feature.ftype == "splice_junction":
-          
-            # Add transcript model to the graph
             for e1,e2 in self.db.get_junction_exons(feature):
-                if e1.strand == "+":
-                    self.graph.add_path((e1.out_node(), e2.in_node()), 
+                if e1.strand == "-":
+                    e1,e2 = e2,e1
+                self.graph.add_path((e1.out_node(), e2.in_node()), 
                             ftype="splice_junction", weight=-1)
-                if e2.strand == "-":
-                    self.graph.add_path((e2.out_node(), e1.in_node()), 
-                            ftype="splice_junction", weight=-1)
+                self._set_edge_weight(feature, e1.out_node(), e2.in_node(), weights)
   
     def get_best_variants(self, weights):
         
@@ -73,8 +77,6 @@ class DbCollection(object):
         for iw in weights:
             identifier = iw["name"]
             weight = iw["weight"]
-            self.max_id_value[identifier] = 0
-            print "HOEHA", identifier, weight
             iweight[identifier] = weight
         
         add = {}
@@ -91,62 +93,68 @@ class DbCollection(object):
                     add.setdefault(source, []).append(node)
         
         for p in add_ends:
-            self.graph.add_path(p)
+            self.graph.add_path(p, ftype="sink")
         
         for source, targets in add.items():
             for target in targets:
                 self.graph.add_path((source, target), ftype='source')
                 self._set_source_weight((source, target), weights)
-                print "ha", self.graph.edge[source][target]
 
-        
         for n1,n2 in self.graph.edges():
             self.graph.edge[n1][n2]['weight'] = -0.01
             d = self.graph.edge[n1][n2]
-            
-            print d.keys()
-            print d.values()
-            print iweight.keys()
-            print iweight.values()
-            
+           
             for k,v in self.max_id_value.items():
                 if v > 0:
-                    print "Mwaha", k, v
-                    
-                    
+                    #print "Mwaha", k, v
                     if k in d:
                         w = d[k] / v * iweight[k]
                         self.graph.edge[n1][n2]['weight'] -= w 
+                        #print "setting weight {} {} to {}".format(n1, n2, w) 
         
-        print "hola"
+            if self.graph.edge[n1][n2]['ftype'] == "exon":
+                self.logger.debug("Edge: %s, %s", n1, n2)
+                for k,v in d.items():
+                    self.logger.debug("Key: %s, value: %s", k, v)
+        
+        
+        #print "hola"
         for n1,n2 in self.graph.edges():
             d = self.graph.edge[n1][n2]
-            print n1, n2, d['weight']
-        print "mola"
+            #print n1, n2, d['weight']
+        #print "mola"
         
         for source, targets in add.items():
             sink = source.replace("source", "sink")
-            pred,dis = nx.bellman_ford(self.graph, source)
-            t = sink
-            best_variant = []
-            while pred[t]:
-                best_variant.append(pred[t])
-                t = pred[t]
+            #print "source", source
+            #print "targets", targets
             
-            p = re.compile(r'(.+):(\d+)([+-])')
-            model = []
-            strand = "+"
-            for i in range(0, len(best_variant) - 1, 2):
-                n1,n2 = best_variant[i:i+2]
-                print "Getting {} {}".format(n1, n2)
-                e = self._nodes_to_exon(n1, n2)
-                strand = e.strand
-                model.append(e)
-            if strand == "+":
-                model = model[::-1]
-            print model
-            yield model
-
+            try:
+                pred,dis = nx.bellman_ford(self.graph, source)
+            
+                t = sink
+                best_variant = []
+                while pred[t]:
+                    best_variant.append(pred[t])
+                    t = pred[t]
+                
+                p = re.compile(r'(.+):(\d+)([+-])')
+                model = []
+                strand = "+"
+                for i in range(0, len(best_variant) - 1, 2):
+                    n1,n2 = best_variant[i:i+2]
+                    #print "Getting {} {}".format(n1, n2)
+                    e = self._nodes_to_exon(n1, n2)
+                    strand = e.strand
+                    model.append(e)
+                if strand == "+":
+                    model = model[::-1]
+                #print model
+                yield model
+    
+            except:
+                self.logger.warning("Failed: %s", self.graph.edge[source].keys())
+    
     def _nodes_to_feature(self, n1, n2, feature): 
         p = re.compile(r'(.+):(\d+)([+-])')
         m = p.search(n1)
@@ -190,31 +198,29 @@ class DbCollection(object):
                 elif idtype == "evidence":
                     id_value = len (feature.evidences)
                 elif idtype == "length":
-                    id_value = feature.end - feature.start
+                    id_value = length
+                elif idtype == "orf":
+                    start, end = longest_orf(feature.seq)
+                    id_value =  end - start
             elif d['ftype'] == "splice_junction":
                 if idtype == "splice":
                     f = self._nodes_to_splice_junction(n1, n2)
-                    id_value = self.db.intron_splice_stats(f, identifier)
-                    print "SPLICE:", id_value
-                elif idtype == "orf":
-                    raise NotImplementedError
-                    #start, end = longest_orf(exons_to_seq(transcript))
-                    #return end - start
+                    id_value = feature_stats.get(identifier, 0)
             d[identifier] = id_value
             if id_value > self.max_id_value[identifier]:
                 self.max_id_value[identifier] = id_value
         
     def _set_source_weight(self, edge, weights):
         n2 = edge[-1] 
-        print "SOURCE"
+        #print "SOURCE"
         for iw in weights:
             weight = iw["weight"]
             idtype = iw["type"]
             identifier = iw["name"]
             if idtype == "first":
-                print "f", n2
+                #print "f", n2
                 for other in self.graph[n2]:
-                    print "other", other 
+                    #print "other", other 
                     e = self._nodes_to_exon(n2, other)
                     signal = self.db.feature_stats(e, identifier)
                     self.graph.edge[edge[0]][n2][identifier] = signal
@@ -222,7 +228,7 @@ class DbCollection(object):
                         self.max_id_value[identifier] = signal
 
     def get_weight(self, m):
-        return 1
+        return -len(m)
         #for e1, e2 in zip(m[:-1], m[1:]):
     
     def filter_long(self, l=1000, evidence=2):
