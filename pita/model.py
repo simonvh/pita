@@ -147,8 +147,8 @@ def get_chrom_models(conn, chrom, weight, repeats=None, prune=None, keep=None, f
                     w2 = 0.0
                     for d in prune["overlap"]["weights"]:
                         logger.debug("Pruning overlap: %s", d)
-                        tmp_w1 = mc.get_weight(m1, d["name"], d["type"])
-                        tmp_w2 = mc.get_weight(m2, d["name"], d["type"])
+                        tmp_w1 = mc.get_weight(m1)
+                        tmp_w2 = mc.get_weight(m2)
                         m = max((tmp_w1, tmp_w2))
                         if m > 0:
                             w1 += tmp_w1 / max((tmp_w1, tmp_w2))
@@ -163,6 +163,7 @@ def get_chrom_models(conn, chrom, weight, repeats=None, prune=None, keep=None, f
         
         logger.info("Done calling transcripts for %s", chrom)
         result = [v for m,v in models.items() if not m in discard]
+        print "VV", result
         return [[name, [e.to_flat_exon() for e in exons]] for name, exons in result]
 
     except:
