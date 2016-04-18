@@ -204,42 +204,6 @@ class DbCollection(object):
             if id_value > self.max_id_value[identifier]:
                 self.max_id_value[identifier] = id_value
         
-    def _set_weights(self, weights):
-      
-        for n1,n2 in self.graph.edges():
-            d = self.graph.edge[n1][n2]
-            for iw in weights:
-                weight = iw["weight"]
-                idtype = iw["type"]
-                identifier = iw["name"]
-                id_value = 0
-                if d['ftype'] == "exon":
-                    e = self._nodes_to_exon(n1, n2) 
-                    signal = self.db.feature_stats(e, identifier)
-                    length = e.end - e.start
-                    if idtype == "all":
-                        id_value = signal
-                    elif idtype == "rpkm":
-                        if signal > 0:
-                            mreads = self.db.nreads(identifier) / 1e6
-                            id_value = float(signal) / mreads / length * 1000.0
-                    elif idtype == "evidence":
-                        id_value = len (e.evidences)
-                    elif idtype == "length":
-                        id_value = e.end - e.start
-                elif d['ftype'] == "splice_junction":
-                    if idtype == "splice":
-                        f = self._nodes_to_splice_junction(n1, n2)
-                        id_value = self.db.intron_splice_stats(f, identifier)
-                        print "SPLICE:", id_value
-                    elif idtype == "orf":
-                        raise NotImplementedError
-                        #start, end = longest_orf(exons_to_seq(transcript))
-                        #return end - start
-                d[identifier] = id_value
-                if id_value > self.max_id_value[identifier]:
-                    self.max_id_value[identifier] = id_value
-
     def _set_source_weight(self, edge, weights):
         n2 = edge[-1] 
         print "SOURCE"
@@ -256,7 +220,6 @@ class DbCollection(object):
                     self.graph.edge[edge[0]][n2][identifier] = signal
                     if signal > self.max_id_value[identifier]:
                         self.max_id_value[identifier] = signal
-
 
     def get_weight(self, m):
         return 1
