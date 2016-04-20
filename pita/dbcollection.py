@@ -99,35 +99,26 @@ class DbCollection(object):
             for target in targets:
                 self.graph.add_path((source, target), ftype='source')
                 self._set_source_weight((source, target), weights)
-
+        
         for n1,n2 in self.graph.edges():
             self.graph.edge[n1][n2]['weight'] = -0.01
             d = self.graph.edge[n1][n2]
-           
             for k,v in self.max_id_value.items():
                 if v > 0:
-                    #print "Mwaha", k, v
                     if k in d:
-                        w = d[k] / v * iweight[k]
+                        w = d[k] / float(v) * iweight[k]
                         self.graph.edge[n1][n2]['weight'] -= w 
-                        #print "setting weight {} {} to {}".format(n1, n2, w) 
         
             if self.graph.edge[n1][n2]['ftype'] == "exon":
                 self.logger.debug("Edge: %s, %s", n1, n2)
                 for k,v in d.items():
                     self.logger.debug("Key: %s, value: %s", k, v)
         
-        
-        #print "hola"
         for n1,n2 in self.graph.edges():
             d = self.graph.edge[n1][n2]
-            #print n1, n2, d['weight']
-        #print "mola"
         
         for source, targets in add.items():
             sink = source.replace("source", "sink")
-            #print "source", source
-            #print "targets", targets
             
             try:
                 pred,dis = nx.bellman_ford(self.graph, source)
@@ -212,26 +203,55 @@ class DbCollection(object):
         
     def _set_source_weight(self, edge, weights):
         n2 = edge[-1] 
-        #print "SOURCE"
         for iw in weights:
             weight = iw["weight"]
             idtype = iw["type"]
             identifier = iw["name"]
             if idtype == "first":
-                #print "f", n2
                 for other in self.graph[n2]:
-                    #print "other", other 
                     e = self._nodes_to_exon(n2, other)
                     signal = self.db.feature_stats(e, identifier)
                     self.graph.edge[edge[0]][n2][identifier] = signal
                     if signal > self.max_id_value[identifier]:
                         self.max_id_value[identifier] = signal
 
+    def _model_to_path(self, model):
+        """
+        takes a list of Exons and returns a list of edges
+        """
+        
+        # path is reversed if on minus strand
+        if model[0].strand == "-":
+            model = model[::-1]
+        
+        # add source node to the path
+        source = [n for n in self.graph.predecessors(model[0].in_node())
+                    if n.startswith("source")][0]
+        path = [
+                self.graph.edge[source][model[0].in_node()],
+                self.graph.edge[model[0].in_node()][model[0].out_node()],
+                    ]
+        # add edge for every exon and intron
+        for e1,e2 in zip(model[:-1], model[1:]):
+            path += [
+                    self.graph.edge[e1.out_node()][e2.in_node()],
+                    self.graph.edge[e2.in_node()][e2.out_node()]
+                    ]
+        return path
+
     def get_weight(self, m):
-        return -len(m)
-        #for e1, e2 in zip(m[:-1], m[1:]):
+        """
+        return the total weight for a model
+        """
+
+        return sum([edge.get('weight', 0) for edge in self._model_to_path(m)])
     
     def filter_long(self, l=1000, evidence=2):
+        """
+        remove exon with length of at least <l> that is not supported by at least
+        <evidence> sources
+        """
+        
         for exon in self.db.get_long_exons(self.chrom, l, evidence):
             out_edges = len(self.graph.out_edges([exon]))
             in_edges = len(self.graph.in_edges([exon]))
