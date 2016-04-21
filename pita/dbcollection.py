@@ -11,10 +11,10 @@ from networkx.algorithms.flow import edmonds_karp
 from pita.util import longest_orf,exons_to_seq
 
 class DbCollection(object):
-    def __init__(self, db, weights, chrom=None):
+    def __init__(self, db, weights, prune=None, chrom=None):
         # dict with chrom as key
         self.logger = logging.getLogger("pita")
-        
+
         self.db = db
         self.chrom = chrom
 
@@ -23,7 +23,7 @@ class DbCollection(object):
 
         # Store read counts of BAM files
         self.nreads = {}
-        
+
         # Store extension used in BAM statistics
         self.extend = {}
 
@@ -32,19 +32,40 @@ class DbCollection(object):
         for iw in weights:
             identifier = iw["name"]
             self.max_id_value[identifier] = 0
- 
+        
+        # TODO: add long exon code prune here
         self.logger.debug("Loading exons in graph")
         for exon in self.db.get_exons(chrom, eager=True):
             self.add_feature(exon, weights)
-        
+
+        # Load the introns
+        self._load_splice_junctions(weights, chrom=chrom, prune=prune)
+
+    def _load_splice_junctions(self, weights, chrom=None, prune=None): 
+        """
+        Load splice junctions from database in graph
+        """
         self.logger.debug("Loading introns in graph")
+        
+        # Get filtering rules 
+        if prune == None:
+            prune = {}
+        min_reads = prune.get("introns", {}).get("min_reads", None)
+        ev = prune.get("introns", {}).get("evidence", None)
+        if min_reads:
+            self.logger.debug("Minimum reads for splice junction: %s", 
+                    min_reads)
+        if ev:
+            self.logger.debug("Minimum evidence for splice junction: %s", 
+                    min_reads)
+        
+        # Load splice junctions    
         n = 0
-        #for junction in self.db.get_splice_junctions(chrom, ev_count=1, read_count=20):
-        for junction in self.db.get_splice_junctions(chrom, ev_count=2, read_count=10, eager=True):
+        for junction in self.db.get_splice_junctions(chrom, 
+                ev_count=ev, read_count=min_reads, eager=True):
             n += 1
             self.add_feature(junction, weights)
         self.logger.debug("%s introns were loaded", n)
-
 
     def add_feature(self, feature, weights):
         """ 
@@ -54,9 +75,9 @@ class DbCollection(object):
         # Exon
         if feature.ftype == "exon":
             nodes = [
-                (feature.in_node(), "exon_in"), 
-                (feature.out_node(), "exon_out"),
-                ]
+                    (feature.in_node(), "exon_in"), 
+                    (feature.out_node(), "exon_out"),
+                    ]
             for node,ftype in nodes:
                 f = self.graph.add_node(node, ftype=ftype)
             self.graph.add_path([n[0] for n in nodes], 
@@ -68,17 +89,17 @@ class DbCollection(object):
                 if e1.strand == "-":
                     e1,e2 = e2,e1
                 self.graph.add_path((e1.out_node(), e2.in_node()), 
-                            ftype="splice_junction", weight=-1)
+                        ftype="splice_junction", weight=-1)
                 self._set_edge_weight(feature, e1.out_node(), e2.in_node(), weights)
-  
+
     def get_best_variants(self, weights):
-        
+
         iweight = {}
         for iw in weights:
             identifier = iw["name"]
             weight = iw["weight"]
             iweight[identifier] = weight
-        
+
         add = {}
         add_ends = []
         for i,model in enumerate(nx.weakly_connected_components(self.graph)):
@@ -87,19 +108,19 @@ class DbCollection(object):
             ends = [k for k,v in self.graph.out_degree(model).items() if v == 0]
             for end in ends:
                 add_ends.append((end, sink))
-            
+
             for node in model:
                 if self.graph.node[node]['ftype'] ==  "exon_in":
                     add.setdefault(source, []).append(node)
-        
+
         for p in add_ends:
             self.graph.add_path(p, ftype="sink")
-        
+
         for source, targets in add.items():
             for target in targets:
                 self.graph.add_path((source, target), ftype='source')
                 self._set_source_weight((source, target), weights)
-        
+
         for n1,n2 in self.graph.edges():
             self.graph.edge[n1][n2]['weight'] = -0.01
             d = self.graph.edge[n1][n2]
@@ -108,27 +129,27 @@ class DbCollection(object):
                     if k in d:
                         w = d[k] / float(v) * iweight[k]
                         self.graph.edge[n1][n2]['weight'] -= w 
-        
+
             if self.graph.edge[n1][n2]['ftype'] == "exon":
                 self.logger.debug("Edge: %s, %s", n1, n2)
                 for k,v in d.items():
                     self.logger.debug("Key: %s, value: %s", k, v)
-        
+
         for n1,n2 in self.graph.edges():
             d = self.graph.edge[n1][n2]
-        
+
         for source, targets in add.items():
             sink = source.replace("source", "sink")
-            
+
             try:
                 pred,dis = nx.bellman_ford(self.graph, source)
-            
+
                 t = sink
                 best_variant = []
                 while pred[t]:
                     best_variant.append(pred[t])
                     t = pred[t]
-                
+
                 p = re.compile(r'(.+):(\d+)([+-])')
                 model = []
                 strand = "+"

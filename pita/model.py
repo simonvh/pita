@@ -65,7 +65,7 @@ def get_chrom_models(conn, chrom, weight, repeats=None, prune=None, keep=None, f
         for ev in filter_ev:
             db.filter_evidence(chrom, ev, experimental) 
         
-        mc = DbCollection(db, weight, chrom)
+        mc = DbCollection(db, weight, prune=prune, chrom=chrom)
         # Remove long exons with 2 or less evidence sources
         
         if prune and "exons" in prune:
@@ -73,12 +73,6 @@ def get_chrom_models(conn, chrom, weight, repeats=None, prune=None, keep=None, f
             ev = prune["exons"]["evidence"]
             logger.debug("EXON PRUNE %s %s", l, ev)
             mc.filter_long(l=l, evidence=ev)
-        
-        if prune and "introns" in prune:
-            max_reads = prune["introns"]["max_reads"]
-            ev = prune["introns"]["evidence"]
-            logger.debug("EXON PRUNE %s %s", max_reads, ev)
-            mc.prune_splice_junctions(evidence=3, max_reads=10, keep=keep)
         
         # Remove short introns
         #mc.filter_short_introns()
