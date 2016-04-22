@@ -2,7 +2,7 @@ import os
 import sys
 import logging
 from gimmemotifs.genome_index import GenomeIndex
-from sqlalchemy import and_,func
+from sqlalchemy import or_,and_,func
 from sqlalchemy import create_engine
 from sqlalchemy.orm import scoped_session,sessionmaker,subqueryload
 from pita.db_backend import Base,get_or_create,ReadSource,Feature,\
@@ -16,32 +16,30 @@ from tempfile import NamedTemporaryFile
 class AnnotationDb(object):
     def __init__(self, session=None, conn='mysql://pita:@localhost/pita', new=False, index=None):
         self.logger = logging.getLogger("pita")
+        
+        # initialize db session
         if session:
             self.session = session
         else:
-            #if conn.startswith("sqlite"):
-            #    self.Session = db_session(conn, new)
-            #    self.session = self.Session()
-            #    self.engine = db_session.engine
-            #else:
             self._init_session(conn, new) 
         
+        # index to retrieve sequence
+        self.index = None
         if index:
             self.index = GenomeIndex(index)
-        else:
-            self.index = None
    
         self.cache_splice_stats = {}
         self.cache_feature_stats = {}
-    #def __destroy__(self):
-    #    self.session.close()
 
     def _init_session(self, conn, new=False):
         self.engine = create_engine(conn)
         self.engine.raw_connection().connection.text_factory = str
+        
+        # recreate database
         if new:
             Base.metadata.drop_all(self.engine)
             Base.metadata.create_all(self.engine)
+        
         Base.metadata.bind =self.engine
         Session = scoped_session(sessionmaker(bind=self.engine))
         self.session = Session()
@@ -231,29 +229,41 @@ class AnnotationDb(object):
             self.session.rollback()
         else:
             self.session.commit()
-            #for sj in bla:
-            #    self.logger.debug("{} {} {} {}".format(sj.id, sj.chrom, sj.start, sj.end))
-    def get_features(self, ftype=None, chrom=None, eager=False):
-        #self.session.query(Feature)#.options(
-        #        joinedload('read_counts')).all()
+    
+    def get_features(self, ftype=None, chrom=None, eager=False, 
+            min_length=None, max_length=None, evidence=0):
         
         query = self.session.query(Feature)
         query = query.filter(Feature.flag.op("IS NOT")(True))
-        
+            
+        # pre-fetch associated read counts
         if eager:
             query = query.options(subqueryload('read_counts'))
-        #query = query.filter(Feature.flag == Fal)
         
         if chrom:
             query = query.filter(Feature.chrom == chrom)
         if ftype:
             query = query.filter(Feature.ftype == ftype)
         features = [f for f in query]
+        
+        # length filters
+        if max_length:
+            features = [f for f in features if
+                    f.length <= max_length or len(f.evidences) >= evidence]
+
+        if min_length:
+            features = [f for f in features if
+                    f.length >= min_length or len(f.evidences) >= evidence]
+        
         return features
 
-    def get_exons(self, chrom=None, eager=False):
-        return self.get_features(ftype="exon", chrom=chrom, eager=eager)
-    
+    def get_exons(self, chrom=None, eager=False, min_length=None, 
+            max_length=None, evidence=0):
+        
+        return self.get_features(ftype="exon", chrom=chrom, eager=eager, 
+                min_length=min_length, max_length=max_length, evidence=evidence)
+
+
     def get_splice_junctions(self, chrom=None, ev_count=None, read_count=None, max_reads=None, eager=False):
                 
         features = []

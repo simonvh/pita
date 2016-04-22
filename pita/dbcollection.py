@@ -33,14 +33,38 @@ class DbCollection(object):
             identifier = iw["name"]
             self.max_id_value[identifier] = 0
         
-        # TODO: add long exon code prune here
-        self.logger.debug("Loading exons in graph")
-        for exon in self.db.get_exons(chrom, eager=True):
-            self.add_feature(exon, weights)
-
+        # Load the exons
+        self._load_exons(weights, chrom=chrom, prune=prune)
+        
         # Load the introns
         self._load_splice_junctions(weights, chrom=chrom, prune=prune)
 
+    def _load_exons(self, weights, chrom=None, prune=None):
+        """
+        Load exons from database in graph
+        """
+        self.logger.debug("Loading exons in graph")
+        
+        # Get filtering rules 
+        if prune == None:
+            prune = {}
+        min_length = prune.get("exons", {}).get("min_length", None)
+        max_length = prune.get("exons", {}).get("max_length", None)
+        ev = prune.get("exons", {}).get("evidence", None)
+        if min_length:
+            self.logger.debug("Minimum length for exon: %s", 
+                    min_length)
+        if max_length:
+            self.logger.debug("Maximum length for exon: %s", 
+                    max_length)
+        if ev:
+            self.logger.debug("Minimum evidence for exon: %s", 
+                    ev)
+        
+        for exon in self.db.get_exons(chrom, eager=True, 
+                min_length=min_length, max_length=max_length, evidence=ev):
+            self.add_feature(exon, weights)
+    
     def _load_splice_junctions(self, weights, chrom=None, prune=None): 
         """
         Load splice junctions from database in graph
@@ -57,7 +81,7 @@ class DbCollection(object):
                     min_reads)
         if ev:
             self.logger.debug("Minimum evidence for splice junction: %s", 
-                    min_reads)
+                    ev)
         
         # Load splice junctions    
         n = 0
@@ -105,12 +129,13 @@ class DbCollection(object):
         for i,model in enumerate(nx.weakly_connected_components(self.graph)):
             source = "source_{}".format(i + 1)
             sink = "sink_{}".format(i + 1)
-            ends = [k for k,v in self.graph.out_degree(model).items() if v == 0]
+            ends = [k for k,v in self.graph.out_degree(model).items() 
+                    if self.graph.node[k].get('ftype', "") == "exon_out" and v == 0]
             for end in ends:
                 add_ends.append((end, sink))
 
             for node in model:
-                if self.graph.node[node]['ftype'] ==  "exon_in":
+                if self.graph.node[node].get('ftype', "") ==  "exon_in":
                     add.setdefault(source, []).append(node)
 
         for p in add_ends:
@@ -140,10 +165,10 @@ class DbCollection(object):
 
         for source, targets in add.items():
             sink = source.replace("source", "sink")
-
             try:
                 pred,dis = nx.bellman_ford(self.graph, source)
-
+                if not pred.has_key(sink):
+                    continue
                 t = sink
                 best_variant = []
                 while pred[t]:
@@ -155,19 +180,23 @@ class DbCollection(object):
                 strand = "+"
                 for i in range(0, len(best_variant) - 1, 2):
                     n1,n2 = best_variant[i:i+2]
-                    #print "Getting {} {}".format(n1, n2)
                     e = self._nodes_to_exon(n1, n2)
-                    strand = e.strand
-                    model.append(e)
+                    if e:
+                        strand = e.strand
+                        model.append(e)
                 if strand == "+":
                     model = model[::-1]
                 #print model
-                yield model
+                if len(model) > 0:
+                    yield model
     
-            except:
+            except Exception as e:
+                raise
                 self.logger.warning("Failed: %s", self.graph.edge[source].keys())
+                self.logger.warning("%s", e)
     
     def _nodes_to_feature(self, n1, n2, feature): 
+        
         p = re.compile(r'(.+):(\d+)([+-])')
         m = p.search(n1)
         chrom, start, strand = [m.group(x) for x in (1,2,3)]

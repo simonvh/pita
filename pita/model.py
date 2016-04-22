@@ -21,11 +21,15 @@ def load_chrom_data(conn, new, chrom, anno_files, data, index=None):
             if chrom in tabixfile.contigs:
                 fobj = TabixIteratorAsFile(tabixfile.fetch(chrom))
                 if ftype == "bed":
-                    it = read_bed_transcripts(fobj, fname, min_exons=min_exons, merge=10)
+                    it = read_bed_transcripts(fobj, fname, 
+                            min_exons=min_exons, merge=10)
                 elif ftype in ["gff", "gtf", "gff3"]:
-                    it = read_gff_transcripts(fobj, fname, min_exons=min_exons, merge=10)
+                    it = read_gff_transcripts(fobj, fname, 
+                            min_exons=min_exons, merge=10)
                 for tname, source, exons in it:
-                    db.add_transcript("{0}{1}{2}".format(name, SEP, tname), source, exons)
+                    db.add_transcript(
+                            "{0}{1}{2}".format(name, SEP, tname), 
+                            source, exons)
                 del fobj    
             tabixfile.close()
             del tabixfile
@@ -66,14 +70,7 @@ def get_chrom_models(conn, chrom, weight, repeats=None, prune=None, keep=None, f
             db.filter_evidence(chrom, ev, experimental) 
         
         mc = DbCollection(db, weight, prune=prune, chrom=chrom)
-        # Remove long exons with 2 or less evidence sources
-        
-        if prune and "exons" in prune:
-            l = prune["exons"]["length"]
-            ev = prune["exons"]["evidence"]
-            logger.debug("EXON PRUNE %s %s", l, ev)
-            mc.filter_long(l=l, evidence=ev)
-        
+       
         # Remove short introns
         #mc.filter_short_introns()
       
