@@ -12,6 +12,7 @@ p.add_argument("-i",
 p.add_argument("-b",
                dest= "bamfiles",
                help="list of RNA-seq BAM files (seperated by comma)",
+               nargs="+"
               )
 args = p.parse_args()
 
@@ -20,7 +21,7 @@ if not args.bedfile or not args.bamfiles:
     sys.exit()
 
 bedfile = args.bedfile
-bamfiles = args.bamfiles.split(",")
+bamfiles = args.bamfiles
 
 for bamfile in bamfiles:
     if not os.path.exists(bamfile):
