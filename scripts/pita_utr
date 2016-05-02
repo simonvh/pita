@@ -11,7 +11,7 @@ p.add_argument("-i",
               )
 p.add_argument("-b",
                dest= "bamfiles",
-               help="list of RNA-seq BAM files (seperated by comma)",
+               help="list of RNA-seq BAM files (seperated by space)",
                nargs="+"
               )
 args = p.parse_args()
