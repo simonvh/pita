@@ -20,6 +20,7 @@ before_install:
 install:
   - conda install --yes python=$TRAVIS_PYTHON_VERSION pip sqlalchemy pyyaml networkx numpy scipy
   - conda install --yes -c bioconda python=$TRAVIS_PYTHON_VERSION pysam htseq biopython bcbiogff pybedtools
+  - pip install http://bonsai.hgc.jp/~mdehoon/software/cluster/Pycluster-1.52.tar.gz
   - pip install git+https://github.com/simonvh/fluff.git@master
   - git clone https://github.com/Congenica/maxentscan.git
   - pip install .
