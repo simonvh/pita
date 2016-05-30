@@ -3,7 +3,9 @@ import sys
 import os
 import argparse
 from pita.utr import *
-
+import pkg_resources
+version = pkg_resources.require("pita")[0].version
+print("Version: {}".format(version))
 p = argparse.ArgumentParser()
 p.add_argument("-i",
                dest= "bedfile",
@@ -13,6 +15,7 @@ p.add_argument("-b",
                dest= "bamfiles",
                help="list of RNA-seq BAM files (seperated by comma)",
               )
+
 args = p.parse_args()
 
 if not args.bedfile or not args.bamfiles:
