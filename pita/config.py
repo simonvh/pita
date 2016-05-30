@@ -54,7 +54,7 @@ class PitaConfig(object):
         # Pita UTR
         self.pitaUTR = False
         if "extendUtr" in self.config:
-            self.maxentpath = True
+            self.pitaUTR = True
 
         # Scoring weight
         self.weight = {}
