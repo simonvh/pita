@@ -2,7 +2,7 @@ from distutils.core import setup
 from setuptools.command.test import test as TestCommand
 import sys
 
-VERSION = "1.74"
+VERSION = "1.75"
 DESCRIPTION = """
 pita - pita improves transcript annotation
 """
