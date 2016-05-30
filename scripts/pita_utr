@@ -3,6 +3,10 @@ import sys
 import os
 import argparse
 from pita.utr import *
+from pkg_resources import require
+
+version = require("pita")[0].version
+print(version)
 
 p = argparse.ArgumentParser()
 p.add_argument("-i",
