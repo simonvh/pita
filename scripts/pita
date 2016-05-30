@@ -10,9 +10,11 @@ import argparse
 import multiprocessing as mp
 from functools import partial
 import signal
+from pkg_resources import require
 
 DEFAULT_CONFIG = "pita.yaml"
 DEFAULT_THREADS = 4
+VERSION = require("pita")[0].version
 
 p = argparse.ArgumentParser()
 p.add_argument("-c",
@@ -46,10 +48,19 @@ p.add_argument("-r",
                 default = False,
                 action = "store_true",
                 help="reannotate using existing database"
-                )
+              )
+p.add_argument("-v",
+                dest="version",
+                action="store_true",
+                help="Print the program version and exit"
+              )
 
 
 args = p.parse_args()
+if args.version:
+    print("Version: "+VERSION)
+    sys.exit()
+
 configfile = args.configfile
 
 if not os.path.exists(configfile):
