@@ -18,7 +18,8 @@ DEFAULT_THREADS = 4
 VERSION = require("pita")[0].version
 
 p = argparse.ArgumentParser()
-p.add_argument("-c",
+group = p.add_mutually_exclusive_group(required=True)
+group.add_argument("-c",
                dest= "configfile",
                default = DEFAULT_CONFIG,
                help="configuration file (default: {0})".format(DEFAULT_CONFIG)
@@ -50,7 +51,7 @@ p.add_argument("-r",
                 action = "store_true",
                 help="reannotate using existing database"
               )
-p.add_argument("-v",
+group.add_argument("-v",
                 dest="version",
                 action="store_true",
                 help="Print the program version and exit"
