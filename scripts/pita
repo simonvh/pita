@@ -192,7 +192,9 @@ protein_fh.close()
 bedOutput.close()
 
 if config.pitaUTR:
-   print(config.data) 
+    sys.stdout.write(config.data)
+    sys.stdout.flush()
+    print(config.data) 
     
 
 # dump database
