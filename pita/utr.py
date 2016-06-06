@@ -169,7 +169,7 @@ def call_utr(inbed, bamfiles, utr5=False, utr3=True):
     
     return utr
 
-# A nice hack to implement
+# A "nice" hack to implement
 def flipBedStrands(bedfile):
     temp = NamedTemporaryFile(delete=False)
     for line in open(bedfile):
