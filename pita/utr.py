@@ -169,7 +169,39 @@ def call_utr(inbed, bamfiles, utr5=False, utr3=True):
     
     return utr
 
+# A nice hack to implement
+def flipBedStrands(bedfile):
+    temp = NamedTemporaryFile(delete=False)
+    for line in open(bedfile):
+        line = line.strip().split("\t")
+        if line[5] == "-":
+            line[5] = "+"
+        elif line[5] == "+":
+            line[5] = "-"
+        temp.write("\t".join(line))
+    temp.flush()
+    return temp.name
+
 def print_updated_bed(bedfile, bamfiles):
+
+    #Extend the utr to the 5' end
+    first = print_updated_bed(bedfile, bamfiles)
+
+    #flipping the strands to extend the utr to the 3' end
+    preSecond = flipBedStrands(first)
+    second = print_updated_bed(preSecond, bamfiles)
+
+    #back to the correct strands
+    final = flipBedStrands(second)
+    
+    #print the utrExtended bed to the console
+    for line in open(final):
+        print(line.strip())
+
+
+def calculated_updated_bed(bedfile, bamfiles):
+    temp = NamedTemporaryFile(delete=False)
+
     utr = call_utr(bedfile, bamfiles)
     for line in open(bedfile):
         if line.startswith("track") or line[0] == "#":
@@ -214,7 +246,9 @@ def print_updated_bed(bedfile, bamfiles):
                 vals[10] = ",".join([str(x) for x in exonsizes] + [""])
                 vals[11] = ",".join([str(x) for x in exonstarts] + [""])
     
-            print "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}".format(*vals)
+            temp.write("{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}".format(*vals))
         else:
-            print line.strip()
+            temp.write(line.strip())
+    temp.flush()
+    return temp.name
 
