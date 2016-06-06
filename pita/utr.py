@@ -169,7 +169,7 @@ def call_utr(inbed, bamfiles, utr5=False, utr3=True):
     
     return utr
 
-# A "nice" hack to implement
+# A "nice" hack to implement 5' en 3' utr extension
 def flipBedStrands(bedfile):
     temp = NamedTemporaryFile(delete=False)
     for line in open(bedfile):
@@ -183,7 +183,6 @@ def flipBedStrands(bedfile):
     return temp.name
 
 def print_updated_bed(bedfile, bamfiles):
-
     #Extend the utr to the 5' end
     first = calculate_updated_bed(bedfile, bamfiles)
 
