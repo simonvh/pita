@@ -185,11 +185,11 @@ def flipBedStrands(bedfile):
 def print_updated_bed(bedfile, bamfiles):
 
     #Extend the utr to the 5' end
-    first = print_updated_bed(bedfile, bamfiles)
+    first = calculate_updated_bed(bedfile, bamfiles)
 
     #flipping the strands to extend the utr to the 3' end
     preSecond = flipBedStrands(first)
-    second = print_updated_bed(preSecond, bamfiles)
+    second = calculate_updated_bed(preSecond, bamfiles)
 
     #back to the correct strands
     final = flipBedStrands(second)
@@ -199,7 +199,7 @@ def print_updated_bed(bedfile, bamfiles):
         print(line.strip())
 
 
-def calculated_updated_bed(bedfile, bamfiles):
+def calculate_updated_bed(bedfile, bamfiles):
     temp = NamedTemporaryFile(delete=False)
 
     utr = call_utr(bedfile, bamfiles)
