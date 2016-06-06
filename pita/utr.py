@@ -126,7 +126,7 @@ def call_utr(inbed, bamfiles, utr5=False, utr3=True):
     tmp_check.close()
 
     # Created sorted and index bam
-    cmd = "samtools view -Sb {} | samtools sort -m 6G - {}"
+    cmd = "samtools view -Sb {} | samtools sort -m 10G - {}"
     sp.call(cmd.format(tmpsam.name, tmpbam.name), shell=True)
     sp.call("samtools index {}.bam".format(tmpbam.name), shell=True)
     
