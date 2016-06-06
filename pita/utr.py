@@ -178,7 +178,7 @@ def flipBedStrands(bedfile):
             line[5] = "+"
         elif line[5] == "+":
             line[5] = "-"
-        temp.write("\t".join(line))
+        temp.write("\t".join(line)+"\n")
     temp.flush()
     return temp.name
 
