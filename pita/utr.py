@@ -205,7 +205,7 @@ def calculate_updated_bed(bedfile, bamfiles):
     utr = call_utr(bedfile, bamfiles)
     for line in open(bedfile):
         if line.startswith("track") or line[0] == "#":
-            print line.strip()
+            temp.write(line.strip())
             continue
         
         vals = line.strip().split("\t")
@@ -246,9 +246,9 @@ def calculate_updated_bed(bedfile, bamfiles):
                 vals[10] = ",".join([str(x) for x in exonsizes] + [""])
                 vals[11] = ",".join([str(x) for x in exonstarts] + [""])
     
-            temp.write("{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}".format(*vals))
+            temp.write("{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n".format(*vals))
         else:
-            temp.write(line.strip())
+            temp.write(line)
     temp.flush()
     return temp.name
 
