@@ -193,10 +193,17 @@ protein_fh.close()
 bedOutput.close()
 
 if config.pitaUTR:
+<<<<<<< HEAD
+    sys.stdout.write(config.data)
+    sys.stdout.flush()
+    print(config.data) 
+    
+=======
 	for name, fname, span, extend in config.data:
 		if span == "all":
 			bamFiles = fname
 			print_updated_bed(bedOutputName, bamFiles)
+>>>>>>> fd198800e6fa0e61c935f8da1927076d24d7c5ec
 
 # dump database
 if args.yaml_file:
