@@ -60,7 +60,18 @@ def call_utr(inbed, bamfiles, utr5=False, utr3=True):
     if len(transcripts) == 0:
         return 
 
-    td = dict([(t[0].split("_")[1] + "_", t[2]) for t in transcripts])
+   # td = dict([(t[0].split("_")[1] + "_", t[2]) for t in transcripts])
+    
+    #Trying to fix the scaffold struggles
+    td = {}
+    for t in transcripts:
+        if "scaffold" not in t[0]:
+            td[t[0].split("_")[1]+"_"] = t[2]
+	else:
+	    inter = t[0].split(":")
+            scafName = "_".join(inter[0].split("_")[2:4])
+	    pos = inter[1].split("_")[0]
+	    td[scafName+":"pos+"_"] = t[2]
 
     # Create a BED6 file with exons, used to determine UTR boundaries 
     sys.stderr.write("Preparing temporary BED files\n")
