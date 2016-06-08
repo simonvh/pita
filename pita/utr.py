@@ -181,7 +181,7 @@ def call_utr(inbed, bamfiles, utr5=False, utr3=True):
     return utr
 
 # A "nice" hack to implement 5' en 3' utr extension
-def flipBedStrands(bedfile):
+def flip_bed_strands(bedfile):
     temp = NamedTemporaryFile(delete=False)
     for line in open(bedfile):
         line = line.strip().split("\t")
@@ -198,11 +198,11 @@ def print_updated_bed(bedfile, bamfiles):
     first = calculate_updated_bed(bedfile, bamfiles)
 
     #flipping the strands to extend the utr to the 3' end
-    preSecond = flipBedStrands(first)
+    preSecond = flip_bed_strands(first)
     second = calculate_updated_bed(preSecond, bamfiles)
 
     #back to the correct strands
-    final = flipBedStrands(second)
+    final = flip_bed_strands(second)
     
     #print the utrExtended bed to the console
     for line in open(final):
