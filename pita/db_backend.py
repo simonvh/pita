@@ -4,7 +4,10 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship,sessionmaker,scoped_session
 from sqlalchemy import and_, event
 from sqlalchemy.ext.associationproxy import association_proxy
+from sqlalchemy.ext.hybrid import hybrid_property, hybrid_method
+
 from pita.exon import Exon
+
 
 Base = declarative_base()
 
@@ -40,6 +43,10 @@ class Feature(Base):
                 )
     read_counts = relationship('FeatureReadCount')
    
+    @hybrid_property
+    def length(self):
+        return self.end - self.start
+
     def __str__(self):
         return self.to_loc()
     
@@ -53,6 +60,24 @@ class Feature(Base):
                 self.start, self.strand, self.end
                 )
     
+    def in_node(self):
+        if self.strand == "+":
+            return "{}:{}{}_{}".format(
+                    self.chrom, self.start, self.strand, self.ftype + "_in")
+        else: 
+            return "{}:{}{}_{}".format(
+                    self.chrom, self.end, self.strand, self.ftype + "_in")
+    
+    def out_node(self):
+        if self.strand == "-":
+            return "{}:{}{}_{}".format(
+                    self.chrom, self.start, self.strand, self.ftype + "_out")
+        else: 
+            return "{}:{}{}_{}".format(
+                    self.chrom, self.end, self.strand, self.ftype + "_out")
+  
+
+        
     def to_flat_exon(self):
         e = Exon(self.chrom, self.start, self.end, self.strand)
         e.seq = self.seq
