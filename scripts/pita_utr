@@ -3,9 +3,15 @@ import sys
 import os
 import argparse
 from pita.utr import *
+<<<<<<< HEAD
 from pkg_resources import require
 version = require("pita")[0].version
 
+=======
+import pkg_resources
+version = pkg_resources.require("pita")[0].version
+print("Version: {}".format(version))
+>>>>>>> master
 p = argparse.ArgumentParser()
 p.add_argument("-i",
                 dest= "bedfile",
@@ -22,6 +28,7 @@ p.add_argument("-v",
                 help="Print the program version and exit",
                 required=False
               )
+
 args = p.parse_args()
 
 if args.version:
