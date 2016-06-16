@@ -23,6 +23,7 @@ The following Python modules are required:
 * pyyaml
 * networkx (== 1.9)
 * GimmeMotifs - http://github.com/simonvh/gimmemotifs
+* Biofluff - http://github.com/simonvh/fluff
 * HTSeq - http://www-huber.embl.de/users/anders/HTSeq/doc/overview.html
 * numpy
 
