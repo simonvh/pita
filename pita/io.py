@@ -164,10 +164,10 @@ def read_bed_transcripts(fobj, fname="", min_exons=1, merge=0):
                 vals = line.strip().split("\t")
                 
                 i = 1
-                name = "%s_%s_%s" % (vals[0], vals[3], i)
+                name = "%s|%s|%s" % (vals[0], vals[3], i)
                 while names.has_key(name):
                     i += 1
-                    name = "%s_%s_%s" % (vals[0], vals[3], i)
+                    name = "%s|%s|%s" % (vals[0], vals[3], i)
                 names[name] = 1
                 
                 chromStart = int(vals[1])

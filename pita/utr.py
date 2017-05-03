@@ -60,7 +60,18 @@ def call_utr(inbed, bamfiles, utr5=False, utr3=True):
     if len(transcripts) == 0:
         return 
 
-    td = dict([(t[0].split("_")[1] + "_", t[2]) for t in transcripts])
+    td = dict([(t[0].split("|")[1] + "_", t[2]) for t in transcripts])
+    
+    #Trying to fix the scaffold struggles
+    #td = {}
+    #for t in transcripts:
+    #    if "scaffold" not in t[0]:
+    #        td[t[0].split("_")[1]+"_"] = t[2]
+#	else:
+#	    inter = t[0].split(":")
+#            scafName = "_".join(inter[0].split("_")[2:4])
+#	    pos = inter[1].split("_")[0]
+#	    td[scafName+":"+pos+"_"] = t[2]
 
     # Create a BED6 file with exons, used to determine UTR boundaries 
     sys.stderr.write("Preparing temporary BED files\n")
@@ -126,7 +137,11 @@ def call_utr(inbed, bamfiles, utr5=False, utr3=True):
     tmp_check.close()
 
     # Created sorted and index bam
-    cmd = "samtools view -Sb {} | samtools sort -m 6G - {}"
+<<<<<<< HEAD
+    cmd = "samtools view -Sb {} | samtools sort -m 4G - {}"
+=======
+    cmd = "samtools view -Sb {} | samtools sort -m 10G - {}"
+>>>>>>> master
     sp.call(cmd.format(tmpsam.name, tmpbam.name), shell=True)
     sp.call("samtools index {}.bam".format(tmpbam.name), shell=True)
     
@@ -169,11 +184,42 @@ def call_utr(inbed, bamfiles, utr5=False, utr3=True):
     
     return utr
 
+# A "nice" hack to implement 5' en 3' utr extension
+def flip_bed_strands(bedfile):
+    temp = NamedTemporaryFile(delete=False)
+    for line in open(bedfile):
+        line = line.strip().split("\t")
+        if line[5] == "-":
+            line[5] = "+"
+        elif line[5] == "+":
+            line[5] = "-"
+        temp.write("\t".join(line)+"\n")
+    temp.flush()
+    return temp.name
+
 def print_updated_bed(bedfile, bamfiles):
+    #Extend the utr to the 5' end
+    first = calculate_updated_bed(bedfile, bamfiles)
+
+    #flipping the strands to extend the utr to the 3' end
+    preSecond = flip_bed_strands(first)
+    second = calculate_updated_bed(preSecond, bamfiles)
+
+    #back to the correct strands
+    final = flip_bed_strands(second)
+    
+    #print the utrExtended bed to the console
+    for line in open(final):
+        print(line.strip())
+
+
+def calculate_updated_bed(bedfile, bamfiles):
+    temp = NamedTemporaryFile(delete=False)
+
     utr = call_utr(bedfile, bamfiles)
     for line in open(bedfile):
         if line.startswith("track") or line[0] == "#":
-            print line.strip()
+            temp.write(line.strip())
             continue
         
         vals = line.strip().split("\t")
@@ -214,7 +260,9 @@ def print_updated_bed(bedfile, bamfiles):
                 vals[10] = ",".join([str(x) for x in exonsizes] + [""])
                 vals[11] = ",".join([str(x) for x in exonstarts] + [""])
     
-            print "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}".format(*vals)
+            temp.write("{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n".format(*vals))
         else:
-            print line.strip()
+            temp.write(line)
+    temp.flush()
+    return temp.name
 

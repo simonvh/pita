@@ -41,7 +41,7 @@ numchroms = args.numchroms
 sizes = args.chrSizes
 outname = args.output
 baseRegion = args.baseRegion * 1000000
-
+splitNum = 10
 
 # Parse YAML config file
 f = open(configfile, "r")
@@ -100,6 +100,22 @@ chroms = config["chromosomes"]
 anno = config["annotation"]
 msorted = readAnnotation(anno)
 
+
+def ranges(dic):
+    exactRanges = {}
+    for i in chroms:
+        chromRanges = []
+        size = dic[i]
+        baseRegion = size/splitNum
+        for y in range(0, size, baseRegion):
+            start = y
+            stop = y + baseRegion
+            if stop > size:
+                stop = size
+            chromRanges.append([i,start,stop])
+        exactRanges[i] = chromRanges
+    return exactRanges
+
 if numchroms:
     random.shuffle(chroms)
     for i in range(0, len(chroms), numchroms):
@@ -109,22 +125,20 @@ if numchroms:
 
 elif baseRegion:
     dic = parseSizeFile(sizes)
-    for i in chroms:
-        size = dic[i]
-        count = 1
-        for y in range(0, size, baseRegion):
-            start = y
-            stop = y + baseRegion
-            if stop > size:
-                stop = size
-            tmpFile = ntp(delete=False)
-            tmpFile.write("{}\t{}\t{}".format(i,start,stop)) # file with the raw baseRegion for intersection
-            tmpFile.flush()
+    exactRanges = ranges(dic)
+    print(exactRanges)
+    count = 1
 
-            #Getting the more sophisticated regions, based on the merged annotation
-            correctRegions = intersect(msorted, tmpFile.name)
-            tmpFile.close()
-            
-            cmd = "flatbread -c {0} -b {1} -o {2}/{2}_part_{3}".format(configfile, correctRegions, outname,str(count))
-            sp.call(cmd, shell=True)
-            count+=1 
+    for i in range(splitNum):
+        tmpFile = ntp(delete=False)
+        for chrom in chroms:
+            r = exactRanges[chrom][i]
+            tmpFile.write("{}\t{}\t{}\n".format(r[0], r[1], r[2])) # file with the raw baseRegion for intersection
+        tmpFile.flush()
+        #Getting the more sophisticated regions, based on the merged annotation
+        correctRegions = intersect(msorted, tmpFile.name)
+        tmpFile.close()
+           
+        cmd = "flatbread -c {0} -b {1} -o {2}/{2}_part_{3}".format(configfile, correctRegions, outname,str(count))
+        sp.call(cmd, shell=True)
+        count+=1 

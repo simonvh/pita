@@ -15,12 +15,15 @@ before_install:
   - ./miniconda.sh -b -p $HOME/miniconda -f
   - export PATH=$HOME/miniconda/bin:$PATH
   - conda update --yes conda
+  - conda config --add channels conda-forge
+  - conda config --add channels defaults
+  - conda config --add channels r
+  - conda config --add channels bioconda
   - conda info -a
 
 install:
-  - conda install --yes python=$TRAVIS_PYTHON_VERSION pip sqlalchemy pyyaml networkx numpy scipy
-  - conda install --yes -c bioconda python=$TRAVIS_PYTHON_VERSION pysam htseq biopython bcbiogff pybedtools
-  - pip install git+https://github.com/simonvh/fluff.git@master
+  - conda install --yes python=$TRAVIS_PYTHON_VERSION pip sqlalchemy pyyaml networkx numpy scipy pysam htseq biopython bcbiogff pybedtools bedtools biofluff gimmemotifs=0.10.0=py27_0
+  - pip install http://bonsai.hgc.jp/~mdehoon/software/cluster/Pycluster-1.52.tar.gz
   - git clone https://github.com/Congenica/maxentscan.git
   - pip install .
 #  - pip install nose coverage

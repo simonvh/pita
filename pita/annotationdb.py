@@ -2,9 +2,9 @@ import os
 import sys
 import logging
 from gimmemotifs.genome_index import GenomeIndex
-from sqlalchemy import and_,func
+from sqlalchemy import or_,and_,func
 from sqlalchemy import create_engine
-from sqlalchemy.orm import scoped_session,sessionmaker
+from sqlalchemy.orm import scoped_session,sessionmaker,subqueryload
 from pita.db_backend import Base,get_or_create,ReadSource,Feature,\
         FeatureReadCount,Evidence,FeatureEvidence 
 from pita.util import read_statistics, get_splice_score
@@ -16,32 +16,30 @@ from tempfile import NamedTemporaryFile
 class AnnotationDb(object):
     def __init__(self, session=None, conn='mysql://pita:@localhost/pita', new=False, index=None):
         self.logger = logging.getLogger("pita")
+        
+        # initialize db session
         if session:
             self.session = session
         else:
-            #if conn.startswith("sqlite"):
-            #    self.Session = db_session(conn, new)
-            #    self.session = self.Session()
-            #    self.engine = db_session.engine
-            #else:
             self._init_session(conn, new) 
         
+        # index to retrieve sequence
+        self.index = None
         if index:
             self.index = GenomeIndex(index)
-        else:
-            self.index = None
    
         self.cache_splice_stats = {}
         self.cache_feature_stats = {}
-    #def __destroy__(self):
-    #    self.session.close()
 
     def _init_session(self, conn, new=False):
         self.engine = create_engine(conn)
         self.engine.raw_connection().connection.text_factory = str
+        
+        # recreate database
         if new:
             Base.metadata.drop_all(self.engine)
             Base.metadata.create_all(self.engine)
+        
         Base.metadata.bind =self.engine
         Session = scoped_session(sessionmaker(bind=self.engine))
         self.session = Session()
@@ -231,27 +229,42 @@ class AnnotationDb(object):
             self.session.rollback()
         else:
             self.session.commit()
-            #for sj in bla:
-            #    self.logger.debug("{} {} {} {}".format(sj.id, sj.chrom, sj.start, sj.end))
-    def get_features(self, ftype=None, chrom=None):
-        #self.session.query(Feature)#.options(
-        #        joinedload('read_counts')).all()
+    
+    def get_features(self, ftype=None, chrom=None, eager=False, 
+            min_length=None, max_length=None, evidence=0):
         
         query = self.session.query(Feature)
         query = query.filter(Feature.flag.op("IS NOT")(True))
-        #query = query.filter(Feature.flag == Fal)
+            
+        # pre-fetch associated read counts
+        if eager:
+            query = query.options(subqueryload('read_counts'))
         
         if chrom:
             query = query.filter(Feature.chrom == chrom)
         if ftype:
             query = query.filter(Feature.ftype == ftype)
         features = [f for f in query]
+        
+        # length filters
+        if max_length:
+            features = [f for f in features if
+                    f.length <= max_length or len(f.evidences) >= evidence]
+
+        if min_length:
+            features = [f for f in features if
+                    f.length >= min_length or len(f.evidences) >= evidence]
+        
         return features
 
-    def get_exons(self, chrom=None):
-        return self.get_features(ftype="exon", chrom=chrom)
-    
-    def get_splice_junctions(self, chrom=None, ev_count=None, read_count=None, max_reads=None):
+    def get_exons(self, chrom=None, eager=False, min_length=None, 
+            max_length=None, evidence=0):
+        
+        return self.get_features(ftype="exon", chrom=chrom, eager=eager, 
+                min_length=min_length, max_length=max_length, evidence=evidence)
+
+
+    def get_splice_junctions(self, chrom=None, ev_count=None, read_count=None, max_reads=None, eager=False):
                 
         features = []
         if ev_count and read_count:
@@ -266,8 +279,12 @@ class AnnotationDb(object):
 
             for splice in fs:
                 self.logger.debug("Considering %s", splice)        
+                for evidence in splice.evidences:
+                    self.logger.debug(str(evidence))
                 if len(splice.evidences) >= ev_count:
                     features.append(splice)
+                else:
+                    self.logger.debug("not enough evidence for {}".format(splice))
             
             fs = self.session.query(Feature).\
                     filter(Feature.flag.op("IS NOT")(True)).\
@@ -279,10 +296,14 @@ class AnnotationDb(object):
 
             for splice in fs:
                 self.logger.debug("Considering %s (no reads)", splice)        
+                for evidence in splice.evidences:
+                    self.logger.debug(str(evidence))
                 if len(splice.evidences) >= ev_count:
                     features.append(splice)
+                else:
+                    self.logger.debug("not enough evidence for {}".format(splice))
 
-            # All splcies with more than x reads
+            # All splices with more than x reads
             fs = self.session.query(Feature).\
                     filter(Feature.flag.op("IS NOT")(True)).\
                     filter(Feature.ftype == "splice_junction").\
@@ -314,7 +335,7 @@ class AnnotationDb(object):
                     having(func.sum(FeatureReadCount.count) < max_reads)
             features += [f for f in fs if len(f.evidences) > 0]  
         else:
-            features = self.get_features(ftype="splice_junction", chrom=chrom)
+            features = self.get_features(ftype="splice_junction", chrom=chrom, eager=eager)
         return features 
 
     def get_longest_3prime_exon(self, chrom, start5, strand):
@@ -591,6 +612,21 @@ class AnnotationDb(object):
 
         return self.cache_splice_stats["{}{}{}".format(self, exon1, exon2)]
 
+    def intron_splice_stats(self, intron, identifier):
+        if "{}{}".format(self, intron) not in self.cache_splice_stats:
+            q = self.session.query(Feature)
+            q = q.filter(Feature.ftype == "splice_junction")
+            q = q.filter(Feature.chrom == intron.chrom)
+            q = q.filter(Feature.strand == intron.strand)
+            q = q.filter(Feature.start == intron.start)
+            q = q.filter(Feature.end == intron.end)
+
+            splice = q.first()
+        
+            self.cache_splice_stats["{}{}".format(self, intron)] = self.feature_stats(splice, identifier)
+
+        return self.cache_splice_stats["{}{}".format(self, intron)]
+    
     def nreads(self, identifier):
         q = self.session.query(ReadSource)
         q = q.filter(ReadSource.name == identifier)
@@ -616,8 +652,10 @@ class AnnotationDb(object):
                 filter(Feature.start == start).\
                 filter(Feature.end == end).\
                 filter(Feature.strand == strand).\
-                filter(Feature.ftype == ftype).\
-                filter(Feature.seq == seq)
+                filter(Feature.ftype == ftype)
+                
+        if seq:
+            feature = feature.filter(Feature.seq == seq)
         result = feature.first()
         return result
     
@@ -645,4 +683,5 @@ class AnnotationDb(object):
                     group_by(ReadSource.name)
             stats.append(dict([(row[0].name, int(row[1])) for row in q.all()]))
         return stats
+
                    
