@@ -10,7 +10,7 @@ from pita.db_backend import Base,get_or_create,ReadSource,Feature,\
 from pita.util import read_statistics, get_splice_score
 import yaml
 from pita.io import exons_to_tabix_bed, tabix_overlap
-from fluff.fluffio import get_binned_stats
+from fluff.track import BamTrack
 from tempfile import NamedTemporaryFile
 
 class AnnotationDb(object):
@@ -420,7 +420,7 @@ class AnnotationDb(object):
         if span not in ["all", "start", "end"]:
             raise Exception("Incorrect span: {}".format(span))
         
-        tmp = NamedTemporaryFile(delete=False)
+        tmp = NamedTemporaryFile(delete=False, suffix=".bed")
         estore = {}
         self.logger.debug("Writing exons to file %s", tmp.name)
         exons =  self.get_exons(chrom)
@@ -480,7 +480,8 @@ class AnnotationDb(object):
                 read_source.nreads = read_statistics(fname)
 
             self.logger.debug("Getting overlap from %s", fname)
-            result = get_binned_stats(tmp.name, fname, 1, rpkm=False, rmdup=False, rmrepeats=False)
+            t = BamTrack(fname)
+            result = t.binned_stats(tmp.name, 1, rpkm=False, rmdup=False, rmrepeats=False)
 
             self.logger.debug("Reading results, save to exon stats")
 
