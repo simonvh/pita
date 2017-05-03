@@ -31,7 +31,7 @@ def collection(db):
     for tname, source, exons in read_bed_transcripts(open(bed), "test", 0):
         db.add_transcript("{0}{1}{2}".format("test", ":::", tname), source, exons)
     
-    mc = DbCollection(db)
+    mc = DbCollection(db, [])
     return mc
 
 @pytest.fixture
@@ -55,14 +55,9 @@ def test_genome_index(index_dir, loc_and_seq):
 def test_get_transcript_sequence(collection, seqs):
     from pita.util import exons_to_seq
 
-    for cluster in collection.get_connected_models():
-        models = sorted(cluster, cmp=lambda x,y: cmp(len(x), len(y)))
-        seqs = sorted(seqs, cmp=lambda x,y: cmp(len(x), len(y)))
-        for model, seq in zip(models, seqs):
-            for exon in model:
-                print "{0}\t{1}\t{2}".format(exon.chrom, exon.start, exon.end)
-            #print len(exons_to_seq(model))
-            assert seq.upper() == exons_to_seq(model).upper()
+    model = [m for m in collection.get_best_variants([])][0]
+    seq = sorted(seqs, cmp=lambda x,y: cmp(len(x), len(y)))[-1]
+    assert seq.upper() == exons_to_seq(model).upper()
     
     
 

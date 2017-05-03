@@ -62,7 +62,7 @@ def db(tmpdir):
 @pytest.fixture
 def c(db):
     from pita.dbcollection import DbCollection
-    c = DbCollection(db)
+    c = DbCollection(db, [])
     return c
 
 @pytest.fixture
@@ -72,7 +72,7 @@ def db_3t(db, three_transcripts):
         db.add_transcript(name, source, exons)
     c = DbCollection(db)
     return c
-    
+
 @pytest.fixture
 def db_5t(db, two_transcripts, three_transcripts):
     from pita.dbcollection import DbCollection
@@ -80,37 +80,30 @@ def db_5t(db, two_transcripts, three_transcripts):
         db.add_transcript(name, source, exons)
     for name, source, exons in three_transcripts:
         db.add_transcript(name, source, exons)
-    c = DbCollection(db)
+    c = DbCollection(db, [])
     return c
+
 #def test_add_exon(db):
 #    e = db.add_exon("chr1", 100, 200, "-")
 #    assert "chr1:100-200" == str(e)
 #    e = db.add_exon("chr1", 100, 200, "-")
 #    assert "chr1:100-200" == str(e)
 
-#def test_get_exons(three_exons, c):
-#    for e in three_exons:
-#        print e
-#        c.add_exon(*e)
-    
-#    assert 3 == len(c.get_exons())
-#    assert 2 == len(c.get_exons("chr1"))
-#    assert 1 == len(c.get_exons("chr2"))
+def test_add_transcripts(three_transcripts, db):
+    for name, source, exons in three_transcripts:
+        db.add_transcript(name, source, exons)
 
-#def test_add_transcripts(three_transcripts, db):
-#    for name, source, exons in three_transcripts:
-#        db.add_transcript(name, source, exons)
-#
-#    assert 5 == len(db.get_exons())
+    assert 5 == len(db.get_exons())
 
 #def test_get_initial_exons(db_3t):
 #    assert 2 == len(db_3t.get_initial_exons())
  
-def test_retrieve_transcripts(db_5t):
-    clusters = sorted(db_5t.get_connected_models(), lambda x,y: cmp(len(x), len(y)))
-    assert 2 == len(clusters)
-    assert 1 == len(clusters[0])
-    assert 4 == len(clusters[1])
+def test_retrieve_models(db_5t):
+    models = sorted(db_5t.get_best_variants([]), lambda x,y: cmp(len(x), len(y)))
+
+    assert 2 == len(models)
+    assert 3 == len(models[0])
+    assert 3 == len(models[1])
     
 @pytest.fixture
 def t1():
@@ -124,21 +117,19 @@ def test_long_exon_filter(db, t1, t2):
     from pita.dbcollection import DbCollection
     from pita.io import read_bed_transcripts
 
-
     for tname, source, exons in read_bed_transcripts(open(t1)):
         db.add_transcript("{0}{1}{2}".format("t1", "|", tname), source, exons)
     for tname, source, exons in read_bed_transcripts(open(t2)):
         db.add_transcript("{0}{1}{2}".format("t2", "|", tname), source, exons)
     
-    c = DbCollection(db, chrom="chr1")
-    c.filter_long(evidence=1)
+    c = DbCollection(db, [], chrom="chr1")
+    c.filter_long(l=500, evidence=1)
 
     models = []
-    for cluster in c.get_connected_models():
-        for m in cluster:
-            models.append(m)
+    for cluster in c.get_best_variants([]):
+        models.append(cluster)
     
-    assert [1,3,5] == sorted([len(m) for m in models])
+    assert [3,5] == sorted([len(m) for m in models])
 
 @pytest.fixture
 def short_intron_track():
@@ -177,21 +168,21 @@ def short_intron_track():
 def variant_track():
     return "tests/data/many_paths.bed" 
 
-def test_variants(db, variant_track):
-    from pita.dbcollection import DbCollection
-    from pita.io import read_bed_transcripts
-    from pita.util import model_to_bed
-
-    for tname, source, exons in read_bed_transcripts(open(variant_track)):
-         db.add_transcript("{0}{1}{2}".format("t1", "|", tname), source, exons)
-    c = DbCollection(db)
-
-    best_model = [m for m in  c.get_connected_models()][0][0]
-    cuts = [str(e) for e in c.get_node_cuts(best_model)]
-    assert ["chr1:800+900", "chr1:1400+1500"] == cuts 
-    
-    best_variant = c.get_best_variant(best_model, [{"weight":1,"type":"length","name":"length"}])
-    s = [str(s) for s in best_variant]
-    assert ["chr1:100+200", "chr1:400+700", "chr1:800+900", "chr1:1000+1300", "chr1:1400+1500", "chr1:1600+1900", "chr1:2000+2100"] == s
-
-
+#def test_variants(db, variant_track):
+#    from pita.dbcollection import DbCollection
+#    from pita.io import read_bed_transcripts
+#    from pita.util import model_to_bed
+#
+#    for tname, source, exons in read_bed_transcripts(open(variant_track)):
+#         db.add_transcript("{0}{1}{2}".format("t1", "|", tname), source, exons)
+#    c = DbCollection(db, [])
+#
+#    best_model = [m for m in  c.get_connected_models()][0][0]
+#    cuts = [str(e) for e in c.get_node_cuts(best_model)]
+#    assert ["chr1:800+900", "chr1:1400+1500"] == cuts 
+#    
+#    best_variant = c.get_best_variant(best_model, [{"weight":1,"type":"length","name":"length"}])
+#    s = [str(s) for s in best_variant]
+#    assert ["chr1:100+200", "chr1:400+700", "chr1:800+900", "chr1:1000+1300", "chr1:1400+1500", "chr1:1600+1900", "chr1:2000+2100"] == s
+#
+#

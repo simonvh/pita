@@ -158,16 +158,31 @@ def get_splice_score(a, s_type=5):
     if s_type not in [3,5]:
         raise Exception("Invalid splice type {}, should be 3 or 5".format(s_type))
     
+    valid_base = ["maxentscan_score", "score"]
     maxent = config.maxentpath
-    if not maxent:
+    maxent_base = None
+    for base in valid_base:
+        if not maxent:
+            exe = base
+        else:
+            exe = os.path.join(max_ent, base)
+        try:
+            sp.check_output("{}3.pl".format(exe), stderr=sp.STDOUT)
+        except sp.CalledProcessError:
+            maxent_base = exe
+        except:
+            pass
+    
+    if not maxent_base:
         raise Exception("Please provide path to the score5.pl and score3.pl maxent scripts in config file")
 
     tmp = NamedTemporaryFile()
     for name,seq in a:
         tmp.write(">{}\n{}\n".format(name,seq))
     tmp.flush()
-    cmd = "perl score{}.pl {}".format(s_type, tmp.name)
-    p = sp.Popen(cmd, shell=True, cwd=maxent, stdout=sp.PIPE)
+    
+    cmd = "{}{}.pl {}".format(maxent_base, s_type, tmp.name)
+    p = sp.Popen(cmd, shell=True, stdout=sp.PIPE)
     score = 0
     for line in p.stdout.readlines():
         vals = line.strip().split("\t")

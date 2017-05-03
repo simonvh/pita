@@ -303,13 +303,14 @@ class DbCollection(object):
         """
         
         for exon in self.db.get_long_exons(self.chrom, l, evidence):
-            out_edges = len(self.graph.out_edges([exon]))
-            in_edges = len(self.graph.in_edges([exon]))
+            #print self.graph.out_edges()
+            out_edges = len(self.graph.out_edges([exon.out_node()]))
+            in_edges = len(self.graph.in_edges([exon.in_node()]))
             self.logger.debug("Filter long: %s, in %s out %s", 
                     exon, in_edges, out_edges)
 
             if (in_edges >= 0 and out_edges >= 1 and exon.strand == "+" 
                     or in_edges >= 1 and out_edges >= 0 and exon.strand == "-"):
                 self.logger.info("Removing long exon %s", exon)
-                self.graph.remove_node(exon)
+                self.graph.remove_edge(exon.in_node(), exon.out_node())
 
