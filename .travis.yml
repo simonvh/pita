@@ -23,8 +23,6 @@ before_install:
 
 install:
   - conda install --yes python=$TRAVIS_PYTHON_VERSION pip sqlalchemy pyyaml networkx numpy scipy pysam htseq biopython bcbiogff pybedtools bedtools biofluff gimmemotifs=0.10.0=py27_0 rpy2 r-changepoint maxentscan pytest
-  - pip install http://bonsai.hgc.jp/~mdehoon/software/cluster/Pycluster-1.52.tar.gz
-  - git clone https://github.com/Congenica/maxentscan.git
   - pip install .
 #  - pip install nose coverage
 #  - pip install coveralls
