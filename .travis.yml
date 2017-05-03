@@ -13,16 +13,17 @@ before_install:
   - wget https://repo.continuum.io/miniconda/Miniconda2-latest-Linux-x86_64.sh -O miniconda.sh
   - chmod +x miniconda.sh
   - ./miniconda.sh -b -p $HOME/miniconda -f
-  - sudo apt-get install gfortran
   - export PATH=$HOME/miniconda/bin:$PATH
   - conda update --yes conda
+  - conda config --add channels conda-forge
+  - conda config --add channels defaults
+  - conda config --add channels r
+  - conda config --add channels bioconda
   - conda info -a
 
 install:
-  - conda install --yes python=$TRAVIS_PYTHON_VERSION pip sqlalchemy pyyaml networkx numpy scipy
-  - conda install --yes -c bioconda python=$TRAVIS_PYTHON_VERSION pysam htseq biopython bcbiogff pybedtools
+  - conda install --yes python=$TRAVIS_PYTHON_VERSION pip sqlalchemy pyyaml networkx numpy scipy pysam htseq biopython bcbiogff pybedtools bedtools biofluff
   - pip install http://bonsai.hgc.jp/~mdehoon/software/cluster/Pycluster-1.52.tar.gz
-  - pip install git+https://github.com/simonvh/fluff.git@master
   - git clone https://github.com/Congenica/maxentscan.git
   - pip install .
 #  - pip install nose coverage
