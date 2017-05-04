@@ -10,7 +10,7 @@ It has been used to annotate the Xenopus laevis genome based on experimental dat
 
 > Session et al. Genome evolution in the allotetraploid frog Xenopus laevis. Nature. 2016 Oct 20;538(7625):336-343. [doi: 10.1038/nature19840](http://dx.doi.org/10.1038/nature19840).
 
-However, it is not yet easy to use as the documentation is incomplete. 
+However, it is not yet easy to use as the [documentation](http://pita.readthedocs.org) is incomplete. 
 
 ## Installation
 
