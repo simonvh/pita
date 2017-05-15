@@ -12,6 +12,16 @@ It has been used to annotate the Xenopus laevis genome based on experimental dat
 
 However, it is not yet easy to use as the [documentation](http://pita.readthedocs.org) is incomplete. 
 
+## Overview
+
+![pita overview](docs/img/pita_graph.png)
+
+Pita can combine imprecise and or incomplete gene models with experimental data such as RNA-seq and H3K4me3 ChIP-seq data to create improved gene annotation. Features:
+
+* Graph-based annotation capable of incorporating diverse types of data
+* Improved annotation of 5' by prioritizing promoters with H3K4me3
+* UTR annotation based on RNA-seq data in combination with change-point detection
+
 ## Installation
 
 Clone this repository:
