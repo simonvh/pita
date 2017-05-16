@@ -6,7 +6,7 @@
 
 Pipeline to improve transcript annotation based on RNA-seq and ChIP-seq data.
 
-It has been used to annotate the Xenopus laevis genome based on experimental data.
+It has been used to annotate the _Xenopus laevis_ genome based on experimental data.
 
 > Session et al. Genome evolution in the allotetraploid frog Xenopus laevis. Nature. 2016 Oct 20;538(7625):336-343. [doi: 10.1038/nature19840](http://dx.doi.org/10.1038/nature19840).
 
@@ -16,10 +16,10 @@ However, it is not yet easy to use as the [documentation](http://pita.readthedoc
 
 ![pita overview](docs/img/pita_graph.png)
 
-Pita can combine imprecise and or incomplete gene models with experimental data such as RNA-seq and H3K4me3 ChIP-seq data to create improved gene annotation. Features:
+Pita can combine imprecise and/or incomplete gene models with experimental data such as RNA-seq and H3K4me3 ChIP-seq to create improved gene annotation. Features:
 
 * Graph-based annotation capable of incorporating diverse types of data
-* Improved annotation of 5' by prioritizing promoters with H3K4me3
+* Improved annotation of 5' end of genes by prioritizing promoters with H3K4me3
 * UTR annotation based on RNA-seq data in combination with change-point detection
 
 ## Installation
