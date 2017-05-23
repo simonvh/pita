@@ -1,5 +1,5 @@
 # pita improves transcript annotation 
-
+[![DOI](https://zenodo.org/badge/47538918.svg)](https://zenodo.org/badge/latestdoi/47538918)
 [![Build Status](https://travis-ci.org/simonvh/pita.svg?branch=master)](https://travis-ci.org/simonvh/pita)
 [![Code Health](https://landscape.io/github/simonvh/pita/master/landscape.svg?style=flat)](https://landscape.io/github/simonvh/pita/master)
 
