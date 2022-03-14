@@ -1,8 +1,9 @@
 from sqlalchemy import create_engine
 from pita.db_backend import *
 
+
 def db_session(conn, new=False):
-    if not hasattr(db_session, 'session') or not db_session.session:
+    if not hasattr(db_session, "session") or not db_session.session:
         engine = create_engine(conn)
         engine.raw_connection().connection.text_factory = str
         db_session.engine = engine
@@ -15,5 +16,5 @@ def db_session(conn, new=False):
         db_session.session.commit()
         Base.metadata.drop_all(db_session.engine)
         Base.metadata.create_all(db_session.engine)
-    
+
     return db_session.session

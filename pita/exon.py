@@ -1,7 +1,9 @@
 class Exon(object):
     def __init__(self, chrom, start, end, strand):
         if end < start:
-            raise ValueError("exon end < start (%s:%s%s%s)" % (chrom, start, strand, end))
+            raise ValueError(
+                "exon end < start (%s:%s%s%s)" % (chrom, start, strand, end)
+            )
         self.chrom = chrom
         self.start = start
         self.end = end
@@ -13,7 +15,7 @@ class Exon(object):
 
     def __nonzero__(self):
         return 1
-    
+
     def __len__(self):
         return self.end - self.start
 
@@ -23,7 +25,7 @@ class Exon(object):
     def add_evidence(self, ev):
         if ev not in self.evidence:
             self.evidence.append(ev)
-    
+
     def overlap(self, exon, strand=True):
         if strand and self.strand != exon.strand:
             return 0

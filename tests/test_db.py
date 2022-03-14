@@ -163,7 +163,7 @@ def test_db_collection(db):
     c = DbCollection(db, [])
 
     for model in c.get_best_variants([]):
-        print model
+        print(model)
 
 def test_get_long_exons(db):
     assert 0 == len(db.get_long_exons("scaffold_1", 100000, 2))
@@ -177,12 +177,12 @@ def test_load_yaml(empty_db):
     db.load_yaml("tests/data/merge2.yaml")
 
     for e in db.get_exons():
-        print str(e)
+        print(str(e))
     
     assert 6 == len([e for e in db.get_exons()])
     
     l = [len(e.evidences) for e in db.get_exons()]
-    print l
+    print(l)
     assert sorted(l) == [1,1,1,1,2,2]
 
 

@@ -30,6 +30,6 @@ def test_compare_annnotation(models_to_compare):
         for gene2 in result[gene1].keys():
             vals = result[gene1][gene2]
             ref_vals = ref[gene1][gene2]
-            print gene1, gene2, vals, ref_vals
+            print(gene1, gene2, vals, ref_vals)
             for n, nref in zip(vals, ref_vals):
                 assert abs(n - nref) < 0.0001
