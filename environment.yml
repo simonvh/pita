@@ -1,13 +1,12 @@
 name: pita
 channels:
-- bioconda
-- r
-- defaults
 - conda-forge
+- bioconda
+- defaults
 dependencies:
 - biofluff
 - biopython
-- gimmemotifs=0.10.0=py27_0
+- gimmemotifs
 - bcbiogff
 - pysam
 - pyyaml
