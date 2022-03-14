@@ -4,33 +4,38 @@ import os
 import argparse
 from pita.utr import *
 from pkg_resources import require
+
 version = require("pita")[0].version
 
 
 import pkg_resources
+
 version = pkg_resources.require("pita")[0].version
 
 p = argparse.ArgumentParser()
-p.add_argument("-i",
-                dest= "bedfile",
-                help="genes in BED12 format",
-              )
-p.add_argument("-b",
-                dest= "bamfiles",
-                help="list of RNA-seq BAM files (seperated by space)",
-                nargs="+"
-              )
-p.add_argument("-v",
-                action='store_true',
-                dest="version",
-                help="Print the program version and exit",
-                required=False
-              )
+p.add_argument(
+    "-i",
+    dest="bedfile",
+    help="genes in BED12 format",
+)
+p.add_argument(
+    "-b",
+    dest="bamfiles",
+    help="list of RNA-seq BAM files (seperated by space)",
+    nargs="+",
+)
+p.add_argument(
+    "-v",
+    action="store_true",
+    dest="version",
+    help="Print the program version and exit",
+    required=False,
+)
 
 args = p.parse_args()
 
 if args.version:
-    print("Version: "+version)
+    print("Version: " + version)
     sys.exit()
 
 if not args.bedfile or not args.bamfiles:
@@ -43,7 +48,7 @@ bamfiles = args.bamfiles
 for bamfile in bamfiles:
     if not os.path.exists(bamfile):
         sys.stderr.write("BAM file {} does not exist.\n".format(bamfile))
-        sys.exit(1)    
+        sys.exit(1)
     if not os.path.exists(bamfile + ".bai"):
         sys.stderr.write("index file {}.bai does not exist.\n".format(bamfile))
         sys.exit(1)

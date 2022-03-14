@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 # Copyright (c) 2013 Simon van Heeringen <s.vanheeringen@ncmls.ru.nl>
 #
-# This script is free software. You can redistribute it and/or modify it under 
-# the terms of the MIT License, see the file COPYING included with this 
+# This script is free software. You can redistribute it and/or modify it under
+# the terms of the MIT License, see the file COPYING included with this
 # distribution.
 
 import sys
@@ -21,51 +21,55 @@ for line in open(sys.argv[1]):
         fh.write("#{0}\n".format(line.strip()))
     else:
         chrom = vals[0]
-        start,end = int(vals[1]), int(vals[2])
+        start, end = int(vals[1]), int(vals[2])
         thickStart, thickEnd = int(vals[6]), int(vals[7])
         strand = vals[5]
         if strand not in "+-":
-            strand = "?"    # ? can be used for features whose strandedness is relevant, but unknown.
-        name = vals[3].replace(";","|")
+            strand = "?"  # ? can be used for features whose strandedness is relevant, but unknown.
+        name = vals[3].replace(";", "|")
 
         exonStarts = [int(x) for x in vals[11].strip(",").split(",")]
         exonSizes = [int(x) for x in vals[10].strip(",").split(",")]
-        
+
         # Gene
-        fh.write(GFF_LINE.format(
-                                chrom,
-                                ".",
-                                "mRNA",
-                                start + 1,
-                                end,
-                                ".",
-                                strand,
-                                ".",
-                                "ID={0}".format(name)
-                                ))
-        
+        fh.write(
+            GFF_LINE.format(
+                chrom,
+                ".",
+                "mRNA",
+                start + 1,
+                end,
+                ".",
+                strand,
+                ".",
+                "ID={0}".format(name),
+            )
+        )
+
         # Exons
         for i, (estart, esize) in enumerate(zip(exonStarts, exonSizes)):
-            fh.write(GFF_LINE.format(
-                                chrom,
-                                ".",
-                                "exon",
-                                start + 1 + estart,
-                                start + estart + esize,
-                                ".",
-                                strand,
-                                ".",
-                                "ID={0}.Exon.{1};Parent={0}".format(name, i + 1)
-                               )) 
+            fh.write(
+                GFF_LINE.format(
+                    chrom,
+                    ".",
+                    "exon",
+                    start + 1 + estart,
+                    start + estart + esize,
+                    ".",
+                    strand,
+                    ".",
+                    "ID={0}.Exon.{1};Parent={0}".format(name, i + 1),
+                )
+            )
         # CDS
         phase = 0
         cds = []
         exon_it = zip(exonStarts, exonSizes)
         if strand == "-":
             exon_it = exon_it[::-1]
-        
+
         for i, (estart, esize) in enumerate(exon_it):
-            
+
             if thickStart <= start + estart + esize and thickEnd >= start + estart:
                 cds_start = start + 1 + estart
                 cds_end = start + estart + esize
@@ -73,25 +77,24 @@ for line in open(sys.argv[1]):
                     cds_start = thickStart + 1
                 if thickEnd <= start + estart + esize:
                     cds_end = thickEnd
-                
+
                 if cds_end > cds_start:
                     cds.append([chrom, cds_start, cds_end, strand, phase, name])
-                
+
                 phase = 2 - ((cds_end - cds_start - phase) % 3)
-        for vals in sorted(cds, cmp=lambda x,y: cmp(x[1], y[1])):    
+        for vals in sorted(cds, cmp=lambda x, y: cmp(x[1], y[1])):
             chrom, cds_start, cds_end, strand, phase, name = vals
             # First CDS exon
-            fh.write(GFF_LINE.format(
-                                    chrom,
-                                    ".",
-                                    "CDS",
-                                    cds_start,
-                                    cds_end,
-                                    ".",
-                                    strand,
-                                    phase,
-                                    "ID={0}.CDS;Parent={0}".format(name)
-                                   )) 
-
-
-
+            fh.write(
+                GFF_LINE.format(
+                    chrom,
+                    ".",
+                    "CDS",
+                    cds_start,
+                    cds_end,
+                    ".",
+                    strand,
+                    phase,
+                    "ID={0}.CDS;Parent={0}".format(name),
+                )
+            )

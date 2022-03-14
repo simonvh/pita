@@ -10,30 +10,25 @@ import random
 import pybedtools
 
 p = argparse.ArgumentParser()
-p.add_argument("-c",
-               dest= "configfile",
-               help="Input configuration file",
-               required=True
-              )
-p.add_argument("-n",
-               dest= "numchroms",
-               type=int,
-               help="Number of chromosomes / regions per file",
-              )
-p.add_argument("-b",
-                dest="baseRegion",
-                type=int,
-                help="Number of basepairs / regions per file in megabases"
-              )
-p.add_argument("-s",
-                dest="chrSizes",
-                help="File with chromosome sizes (Ncbi format), only required in combination with -b flag"
-              )
-p.add_argument("-o",
-               dest= "output",
-               help="Output base name",
-               required=True
-              )
+p.add_argument("-c", dest="configfile", help="Input configuration file", required=True)
+p.add_argument(
+    "-n",
+    dest="numchroms",
+    type=int,
+    help="Number of chromosomes / regions per file",
+)
+p.add_argument(
+    "-b",
+    dest="baseRegion",
+    type=int,
+    help="Number of basepairs / regions per file in megabases",
+)
+p.add_argument(
+    "-s",
+    dest="chrSizes",
+    help="File with chromosome sizes (Ncbi format), only required in combination with -b flag",
+)
+p.add_argument("-o", dest="output", help="Output base name", required=True)
 
 args = p.parse_args()
 configfile = args.configfile
@@ -68,7 +63,8 @@ def parseSizeFile(sizes):
             dic[line[0]] = int(line[1])
     return dic
 
-#Merges all annotation file so the regions can be determined better later
+
+# Merges all annotation file so the regions can be determined better later
 def readAnnotation(annotation):
     combinedFile = ntp(delete=True)
     mergedSorted = ntp(delete=False)
@@ -76,18 +72,21 @@ def readAnnotation(annotation):
         path = i["path"]
         kind = i["type"]
         if not os.path.exists(path):
-            path = os.path.join(base,path)
+            path = os.path.join(base, path)
         if not os.path.exists(path):
             print("File not found: {}".format(path))
             sys.exit(1)
         if "bed" in kind:
             sp.call("cat {} >> {}".format(path, combinedFile.name), shell=True)
-    sortMerge = "bedtools sort -i {} | bedtools merge -i - > {}".format(combinedFile.name, mergedSorted.name)
+    sortMerge = "bedtools sort -i {} | bedtools merge -i - > {}".format(
+        combinedFile.name, mergedSorted.name
+    )
     sp.call(sortMerge, shell=True)
     combinedFile.close()
     return mergedSorted.name
-                                                                                            
-#Compare the baseRegion with the actual annotation regions to make sure no intersesting regions are cutoff 
+
+
+# Compare the baseRegion with the actual annotation regions to make sure no intersesting regions are cutoff
 def intersect(msorted, region):
     out = ntp(delete=False)
     a = pybedtools.BedTool(msorted)
@@ -106,21 +105,24 @@ def ranges(dic):
     for i in chroms:
         chromRanges = []
         size = dic[i]
-        baseRegion = size/splitNum
+        baseRegion = size / splitNum
         for y in range(0, size, baseRegion):
             start = y
             stop = y + baseRegion
             if stop > size:
                 stop = size
-            chromRanges.append([i,start,stop])
+            chromRanges.append([i, start, stop])
         exactRanges[i] = chromRanges
     return exactRanges
+
 
 if numchroms:
     random.shuffle(chroms)
     for i in range(0, len(chroms), numchroms):
-        config['chromosomes'] = chroms[i: i + numchroms]
-        with open("{0}/{0}_part_{1}.yaml".format(outname, (i / numchroms) + 1), "w") as f:
+        config["chromosomes"] = chroms[i : i + numchroms]
+        with open(
+            "{0}/{0}_part_{1}.yaml".format(outname, (i / numchroms) + 1), "w"
+        ) as f:
             f.write(yaml.dump(config))
 
 elif baseRegion:
@@ -133,12 +135,16 @@ elif baseRegion:
         tmpFile = ntp(delete=False)
         for chrom in chroms:
             r = exactRanges[chrom][i]
-            tmpFile.write("{}\t{}\t{}\n".format(r[0], r[1], r[2])) # file with the raw baseRegion for intersection
+            tmpFile.write(
+                "{}\t{}\t{}\n".format(r[0], r[1], r[2])
+            )  # file with the raw baseRegion for intersection
         tmpFile.flush()
-        #Getting the more sophisticated regions, based on the merged annotation
+        # Getting the more sophisticated regions, based on the merged annotation
         correctRegions = intersect(msorted, tmpFile.name)
         tmpFile.close()
-           
-        cmd = "flatbread -c {0} -b {1} -o {2}/{2}_part_{3}".format(configfile, correctRegions, outname,str(count))
+
+        cmd = "flatbread -c {0} -b {1} -o {2}/{2}_part_{3}".format(
+            configfile, correctRegions, outname, str(count)
+        )
         sp.call(cmd, shell=True)
-        count+=1 
+        count += 1
