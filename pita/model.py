@@ -127,9 +127,7 @@ def get_chrom_models(
                     m1 = models[gene1][1]
                     m2 = models[gene2][1]
 
-                    loc1, loc2 = sorted(
-                        [m1, m2], cmp=lambda x, y: cmp(x[0].start, y[0].start)
-                    )
+                    loc1, loc2 = sorted([m1, m2], key=lambda x: x[0].start)
                     l1 = float(loc1[-1].end - loc1[0].start)
                     l2 = float(loc2[-1].end - loc2[0].start)
                     if loc2[-1].end > loc1[-1].end:

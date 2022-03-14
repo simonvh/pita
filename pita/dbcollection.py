@@ -1,14 +1,9 @@
-from itertools import izip
 import logging
-import random
 import re
 
-import numpy as np
 import networkx as nx
-from networkx.algorithms.connectivity import minimum_st_node_cut
-from networkx.algorithms.flow import edmonds_karp
 
-from pita.util import longest_orf, exons_to_seq
+from pita.util import longest_orf
 
 
 class DbCollection(object):
@@ -47,7 +42,7 @@ class DbCollection(object):
         self.logger.debug("Loading exons in graph")
 
         # Get filtering rules
-        if prune == None:
+        if prune is None:
             prune = {}
         min_length = prune.get("exons", {}).get("min_length", None)
         max_length = prune.get("exons", {}).get("max_length", None)
@@ -71,7 +66,7 @@ class DbCollection(object):
         self.logger.debug("Loading introns in graph")
 
         # Get filtering rules
-        if prune == None:
+        if prune is None:
             prune = {}
         min_reads = prune.get("introns", {}).get("min_reads", None)
         ev = prune.get("introns", {}).get("evidence", None)
@@ -101,16 +96,22 @@ class DbCollection(object):
                 (feature.out_node(), "exon_out"),
             ]
             for node, ftype in nodes:
-                f = self.graph.add_node(node, ftype=ftype)
-            self.graph.add_path([n[0] for n in nodes], weight=-1, ftype="exon")
+                self.graph.add_node(node, ftype=ftype)
+
+            print("%%%")
+            print([n[0] for n in nodes])
+            nx.add_path(self.graph, [n[0] for n in nodes], weight=-1, ftype="exon")
             self._set_edge_weight(feature, nodes[0][0], nodes[1][0], weights)
         # Intron
         elif feature.ftype == "splice_junction":
             for e1, e2 in self.db.get_junction_exons(feature):
                 if e1.strand == "-":
                     e1, e2 = e2, e1
-                self.graph.add_path(
-                    (e1.out_node(), e2.in_node()), ftype="splice_junction", weight=-1
+                nx.add_path(
+                    self.graph,
+                    (e1.out_node(), e2.in_node()),
+                    ftype="splice_junction",
+                    weight=-1,
                 )
                 self._set_edge_weight(feature, e1.out_node(), e2.in_node(), weights)
 
@@ -127,60 +128,74 @@ class DbCollection(object):
         for i, model in enumerate(nx.weakly_connected_components(self.graph)):
             source = "source_{}".format(i + 1)
             sink = "sink_{}".format(i + 1)
+
+            print("***")
+            print(self.graph.out_degree(model))
+            print([k for k in self.graph.out_degree(model)])
             ends = [
                 k
-                for k, v in self.graph.out_degree(model).items()
-                if self.graph.node[k].get("ftype", "") == "exon_out" and v == 0
+                for k, v in self.graph.out_degree(model)
+                if self.graph.nodes[k].get("ftype", "") == "exon_out" and v == 0
             ]
             for end in ends:
                 add_ends.append((end, sink))
 
             for node in model:
-                if self.graph.node[node].get("ftype", "") == "exon_in":
+                if self.graph.nodes[node].get("ftype", "") == "exon_in":
                     add.setdefault(source, []).append(node)
 
         for p in add_ends:
-            self.graph.add_path(p, ftype="sink")
+            nx.add_path(self.graph, p, ftype="sink")
 
         for source, targets in add.items():
             for target in targets:
-                self.graph.add_path((source, target), ftype="source")
+                nx.add_path(self.graph, (source, target), ftype="source")
                 self._set_source_weight((source, target), weights)
 
         for n1, n2 in self.graph.edges():
-            self.graph.edge[n1][n2]["weight"] = -0.01
-            d = self.graph.edge[n1][n2]
+            self.graph.edges[n1, n2]["weight"] = -0.01
+            d = self.graph.edges[n1, n2]
             for k, v in self.max_id_value.items():
                 if v > 0:
                     if k in d:
                         w = d[k] / float(v) * iweight[k]
-                        self.graph.edge[n1][n2]["weight"] -= w
+                        self.graph.edges[n1, n2]["weight"] -= w
 
-            if self.graph.edge[n1][n2]["ftype"] == "exon":
+            if self.graph.edges[n1, n2]["ftype"] == "exon":
                 self.logger.debug("Edge: %s, %s", n1, n2)
                 for k, v in d.items():
                     self.logger.debug("Key: %s, value: %s", k, v)
 
         for n1, n2 in self.graph.edges():
-            d = self.graph.edge[n1][n2]
+            d = self.graph.edges[n1, n2]
 
         for source, targets in add.items():
             sink = source.replace("source", "sink")
             try:
-                pred, dis = nx.bellman_ford(self.graph, source)
-                if not pred.has_key(sink):
+                pred, dis = nx.bellman_ford_predecessor_and_distance(self.graph, source)
+                print("((")
+                print(pred)
+                print()
+                print(dis)
+                print("))")
+                if sink not in pred:
                     continue
                 t = sink
                 best_variant = []
+                print(t)
                 while pred[t]:
-                    best_variant.append(pred[t])
-                    t = pred[t]
+                    print("Voeilie")
+                    best_variant.append(pred[t][0])
+                    t = pred[t][0]
+                    print(t)
 
                 p = re.compile(r"(.+):(\d+)([+-])")
                 model = []
                 strand = "+"
                 for i in range(0, len(best_variant) - 1, 2):
                     n1, n2 = best_variant[i : i + 2]
+                    print("FLLLOOP")
+                    print(n1, n2)
                     e = self._nodes_to_exon(n1, n2)
                     if e:
                         strand = e.strand
@@ -193,7 +208,7 @@ class DbCollection(object):
 
             except Exception as e:
                 raise
-                self.logger.warning("Failed: %s", self.graph.edge[source].keys())
+                self.logger.warning("Failed: %s", self.graph.edges[source].keys())
                 self.logger.warning("%s", e)
 
     def _nodes_to_feature(self, n1, n2, feature):
@@ -216,7 +231,7 @@ class DbCollection(object):
         return self._nodes_to_feature(n1, n2, "splice_junction")
 
     def _set_edge_weight(self, feature, n1, n2, weights):
-        d = self.graph.edge[n1][n2]
+        d = self.graph.edges[n1, n2]
 
         feature_stats = {}
         for f in feature.read_counts:
@@ -224,7 +239,7 @@ class DbCollection(object):
             feature_stats[name] = feature_stats.get(name, 0) + f.count
 
         for iw in weights:
-            weight = iw["weight"]
+            # weight = iw["weight"]
             idtype = iw["type"]
             identifier = iw["name"]
             id_value = 0
@@ -255,14 +270,14 @@ class DbCollection(object):
     def _set_source_weight(self, edge, weights):
         n2 = edge[-1]
         for iw in weights:
-            weight = iw["weight"]
+            # weight = iw["weight"]
             idtype = iw["type"]
             identifier = iw["name"]
             if idtype == "first":
                 for other in self.graph[n2]:
                     e = self._nodes_to_exon(n2, other)
                     signal = self.db.feature_stats(e, identifier)
-                    self.graph.edge[edge[0]][n2][identifier] = signal
+                    self.graph.edges[edge[0], n2][identifier] = signal
                     if signal > self.max_id_value[identifier]:
                         self.max_id_value[identifier] = signal
 
@@ -282,14 +297,14 @@ class DbCollection(object):
             if n.startswith("source")
         ][0]
         path = [
-            self.graph.edge[source][model[0].in_node()],
-            self.graph.edge[model[0].in_node()][model[0].out_node()],
+            self.graph.edges[source, model[0].in_node()],
+            self.graph.edges[model[0].in_node(), model[0].out_node()],
         ]
         # add edge for every exon and intron
         for e1, e2 in zip(model[:-1], model[1:]):
             path += [
-                self.graph.edge[e1.out_node()][e2.in_node()],
-                self.graph.edge[e2.in_node()][e2.out_node()],
+                self.graph.edges[e1.out_node(), e2.in_node()],
+                self.graph.edges[e2.in_node(), e2.out_node()],
             ]
         return path
 
@@ -300,13 +315,13 @@ class DbCollection(object):
 
         return sum([edge.get("weight", 0) for edge in self._model_to_path(m)])
 
-    def filter_long(self, l=1000, evidence=2):
+    def filter_long(self, length=1000, evidence=2):
         """
-        remove exon with length of at least <l> that is not supported by at least
+        remove exon with length of at least <length> that is not supported by at least
         <evidence> sources
         """
 
-        for exon in self.db.get_long_exons(self.chrom, l, evidence):
+        for exon in self.db.get_long_exons(self.chrom, length, evidence):
             # print self.graph.out_edges()
             out_edges = len(self.graph.out_edges([exon.out_node()]))
             in_edges = len(self.graph.in_edges([exon.in_node()]))

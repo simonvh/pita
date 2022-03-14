@@ -1,7 +1,6 @@
 import os
 import sys
 import logging
-from gimmemotifs.genome_index import GenomeIndex
 from sqlalchemy import or_, and_, func
 from sqlalchemy import create_engine
 from sqlalchemy.orm import scoped_session, sessionmaker, subqueryload
@@ -19,6 +18,7 @@ import yaml
 from pita.io import exons_to_tabix_bed, tabix_overlap
 from fluff.track import BamTrack
 from tempfile import NamedTemporaryFile
+from genomepy import Genome
 
 
 class AnnotationDb(object):
@@ -34,9 +34,13 @@ class AnnotationDb(object):
             self._init_session(conn, new)
 
         # index to retrieve sequence
-        self.index = None
+        self.genome = None
         if index:
-            self.index = GenomeIndex(index)
+            if isinstance(index, Genome):
+                print("%%%%", index)
+                self.genome = index
+            else:
+                self.genome = Genome(index)
 
         self.cache_splice_stats = {}
         self.cache_feature_stats = {}
@@ -203,15 +207,22 @@ class AnnotationDb(object):
         for exon in exons:
             seq = ""
             real_seq = ""
-            if self.index:
+            if self.genome:
                 seq = ""
                 try:
-                    seq = self.index.get_sequence(
-                        chrom, exon[1] - 20, exon[2] + 20, strand
-                    )
+                    seq = self.genome[chrom][exon[1] - 20 : exon[2] + 20]
+                    if strand == "-":
+                        # Reverse complement
+                        seq = seq[::-1].complement
                     real_seq = seq[20:-20]
+                    seq = seq.seq
+                    real_seq = seq.seq
                 except Exception:
-                    real_seq = self.index.get_sequence(chrom, exon[1], exon[2], strand)
+                    real_seq = self.genome[chrom][exon[1] : exon[2]]
+                    if strand == "-":
+                        # Reverse complement
+                        real_seq = real_seq[::-1].complement
+                    real_seq = real_seq.seq
                 seqs.append(seq)
 
             exon = get_or_create(
@@ -524,7 +535,7 @@ class AnnotationDb(object):
         if span not in ["all", "start", "end"]:
             raise Exception("Incorrect span: {}".format(span))
 
-        tmp = NamedTemporaryFile(delete=False, suffix=".bed")
+        tmp = NamedTemporaryFile(delete=False, suffix=".bed", mode="w")
         estore = {}
         self.logger.debug("Writing exons to file %s", tmp.name)
         exons = self.get_exons(chrom)

@@ -13,7 +13,7 @@ def _create_tabix(fname, ftype):
     tabix_file = ""
     logger.info("Creating tabix index for %s", os.path.basename(fname))
     logger.debug("Preparing %s for tabix", fname)
-    tmp = NamedTemporaryFile(prefix="pita", delete=False)
+    tmp = NamedTemporaryFile(prefix="pita", delete=False, mode="w")
     preset = "gff"
     if ftype == "bed":
         cmd = 'sort -k1,1 -k2g,2 {0} | grep -v track | grep -v "^#" > {1}'
@@ -38,11 +38,9 @@ def _create_tabix(fname, ftype):
 def exons_to_tabix_bed(exons):
     logger = logging.getLogger("pita")
     logger.debug("Converting %s exons to tabix bed", len(exons))
-    tmp = NamedTemporaryFile(prefix="pita", delete=False)
+    tmp = NamedTemporaryFile(prefix="pita", delete=False, mode="w")
     logger.debug("Temp name %s", tmp.name)
-    for exon in sorted(
-        exons, cmp=lambda x, y: cmp([x.chrom, x.start], [y.chrom, y.start])
-    ):
+    for exon in sorted(exons, key=lambda x: [x.chrom, x.start]):
         tmp.write(
             "{}\t{}\t{}\t{}\t{}\t{}\n".format(
                 exon.chrom, exon.start, exon.end, exon.id, "0", exon.strand
@@ -65,12 +63,12 @@ def tabix_overlap(fname1, fname2, chrom, fraction):
         return
 
     fobj1 = TabixIteratorAsFile(tab1.fetch(chrom))
-    tmp1 = NamedTemporaryFile(prefix="pita.", delete=False)
+    tmp1 = NamedTemporaryFile(prefix="pita.", delete=False, mode="w")
     for line in fobj1.readlines():
         tmp1.write("{}\n".format(line.strip()))
 
     fobj2 = TabixIteratorAsFile(tab2.fetch(chrom))
-    tmp2 = NamedTemporaryFile(prefix="pita.", delete=False)
+    tmp2 = NamedTemporaryFile(prefix="pita.", delete=False, mode="w")
     for line in fobj2.readlines():
         tmp2.write("{}\n".format(line.strip()))
 
@@ -181,7 +179,7 @@ def read_bed_transcripts(fobj, fname="", min_exons=1, merge=0):
 
                 i = 1
                 name = "%s|%s|%s" % (vals[0], vals[3], i)
-                while names.has_key(name):
+                while name in names:
                     i += 1
                     name = "%s|%s|%s" % (vals[0], vals[3], i)
                 names[name] = 1

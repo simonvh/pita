@@ -77,14 +77,14 @@ def call_utr(inbed, bamfiles, utr5=False, utr3=True):
 
     # Create a BED6 file with exons, used to determine UTR boundaries
     sys.stderr.write("Preparing temporary BED files\n")
-    exonbed = NamedTemporaryFile(prefix="pita.", suffix=".bed")
+    exonbed = NamedTemporaryFile(prefix="pita.", suffix=".bed", mode="w")
     bed2exonbed(inbed, exonbed.name)
 
     # Determine boundaries using bedtools
     genes = pybedtools.BedTool(inbed)
     exons = pybedtools.BedTool(exonbed.name)
 
-    tmp = NamedTemporaryFile(prefix="pita.", suffix=".bed")
+    tmp = NamedTemporaryFile(prefix="pita.", suffix=".bed", mode="w")
 
     EXTEND = 10000
     sys.stderr.write("Determining gene boundaries determined by closest gene\n")
@@ -114,8 +114,8 @@ def call_utr(inbed, bamfiles, utr5=False, utr3=True):
 
     tmp.flush()
 
-    tmpsam = NamedTemporaryFile(prefix="pita.", suffix=".sam")
-    tmpbam = NamedTemporaryFile(prefix="pita.")
+    tmpsam = NamedTemporaryFile(prefix="pita.", suffix=".sam", mode="w")
+    tmpbam = NamedTemporaryFile(prefix="pita.", mode="w")
 
     # Retrieve header from first BAM file
     sp.call("samtools view -H {} > {}".format(bamfiles[0], tmpsam.name), shell=True)

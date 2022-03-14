@@ -1,25 +1,22 @@
 import pytest
+from genomepy import Genome
 
 @pytest.fixture
-def index_dir():
-    from gimmemotifs.genome_index import GenomeIndex
-    test_index_dir = 'tests/data/index/'
-    g = GenomeIndex()
-    g.create_index('tests/data/genome/', test_index_dir)
-
-    return test_index_dir
+def genome():
+    g = Genome('tests/data/genome/scaffold_54')
+    return g
 
 @pytest.fixture
 def loc_and_seq():
     return ("scaffold_54", 141483, 141492, "+"), "GTCTATGGG"
 
 @pytest.fixture
-def db(tmpdir, index_dir):
+def db(tmpdir, genome):
     from pita.annotationdb import AnnotationDb
     conn = "sqlite:///{}/pita_test_database.db".format(tmpdir)
     db = AnnotationDb(conn=conn,
             new=True,
-            index=index_dir)
+            index=genome)
     return db
 
 @pytest.fixture
@@ -44,19 +41,16 @@ def seqs():
 
     return seqs
 
-def test_genome_index(index_dir, loc_and_seq):
-    from gimmemotifs.genome_index import GenomeIndex
-    g = GenomeIndex(index_dir)
-    
+def test_genome_index(genome, loc_and_seq):
     loc, seq = loc_and_seq
     
-    assert seq == g.get_sequence(*loc)
+    assert seq == genome[loc[0]][loc[1]:loc[2]]
 
 def test_get_transcript_sequence(collection, seqs):
     from pita.util import exons_to_seq
 
     model = [m for m in collection.get_best_variants([])][0]
-    seq = sorted(seqs, cmp=lambda x,y: cmp(len(x), len(y)))[-1]
+    seq = sorted(seqs, key=lambda x:len(x))[-1]
     assert seq.upper() == exons_to_seq(model).upper()
     
     

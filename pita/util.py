@@ -2,7 +2,6 @@ from pita.config import SAMTOOLS
 from pita.config import config
 from subprocess import Popen, PIPE
 from Bio.Seq import Seq
-from Bio.Alphabet import IUPAC
 import subprocess as sp
 from tempfile import NamedTemporaryFile
 import logging
@@ -33,7 +32,7 @@ def read_statistics(fname, rmrepeat=False, rmdup=False, mapped=False):
 
 def get_overlapping_models(exons):
     overlap = []
-    sorted_exons = sorted(exons, cmp=lambda x, y: cmp(x.start, y.start))
+    sorted_exons = sorted(exons, key=lambda x: x.start)
 
     for i, exon in enumerate(sorted_exons):
         j = i + 1
@@ -63,9 +62,7 @@ def longest_orf(seq, do_prot=False):
     if isinstance(seq, list):
         seq = exons_to_seq(seq)
 
-    dna = Seq(seq, IUPAC.ambiguous_dna)
-
-    my_cmp = lambda x, y: cmp(len(x), len(y))
+    dna = Seq(seq)
 
     orfs = []
     prots = []
@@ -80,16 +77,16 @@ def longest_orf(seq, do_prot=False):
         prot = str(seq.translate())
         # putative_orfs = [re.sub(r'^[^M]*', "", o) for o in prot.split("*")]
         putative_orfs = [o for o in prot.split("*")]
-        longest = sorted(putative_orfs, cmp=my_cmp)[-1]
+        longest = sorted(putative_orfs, key=lambda x: len(x))[-1]
         prots.append(longest)
         start = prot.find(longest) * 3 + i
         end = start + (len(longest) + 1) * 3
         orfs.append((start, end))
 
     if do_prot:
-        return sorted(prots, cmp=lambda x, y: cmp(len(x), len(y)))[-1]
+        return sorted(prots, key=lambda x: len(x))[-1]
     else:
-        return sorted(orfs, cmp=lambda x, y: cmp(x[1] - x[0], y[1] - y[0]))[-1]
+        return sorted(orfs, key=lambda x: x[1] - x[0])[-1]
 
 
 def find_genomic_pos(pos, exons):
@@ -179,7 +176,7 @@ def get_splice_score(a, s_type=5):
             "Please provide path to the score5.pl and score3.pl maxent scripts in config file"
         )
 
-    tmp = NamedTemporaryFile()
+    tmp = NamedTemporaryFile(mode="w")
     for name, seq in a:
         tmp.write(">{}\n{}\n".format(name, seq))
     tmp.flush()
@@ -188,7 +185,7 @@ def get_splice_score(a, s_type=5):
     p = sp.Popen(cmd, shell=True, stdout=sp.PIPE)
     score = 0
     for line in p.stdout.readlines():
-        vals = line.strip().split("\t")
+        vals = line.decode().strip().split("\t")
         if len(vals) > 1:
             try:
                 score += float(vals[-1])

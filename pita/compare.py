@@ -56,7 +56,7 @@ def compare_annotation_files(fname1, fname2):
 
     result = compare_annotation(data1, data2)
     for t2, x, exons in data2:
-        if not result.has_key(t2) or result[t2] == {}:
+        if t2 not in result or result[t2] == {}:
             print(
                 "{0}\t{1}\t{2}\t{3}".format(exons[0][0], exons[0][1], exons[-1][2], 1)
             )
@@ -66,7 +66,7 @@ def compare_annotation_files(fname1, fname2):
     t2_cluster = {}
     for transcript2, d in result.items():
         for transcript1 in d.keys():
-            if not cluster.has_key(transcript1):
+            if transcript1 not in cluster:
                 cluster[transcript1] = d.keys()
             else:
                 for t in d.keys():
@@ -87,7 +87,7 @@ def compare_annotation_files(fname1, fname2):
         for transcript1 in cluster:
             acs = []
             for transcript2 in t2s:
-                if result[transcript2].has_key(transcript1):
+                if transcript1 in result[transcript2]:
                     sn, sp, ac = result[transcript2][transcript1]
                     # print transcript1, transcript2, sn, sp, ac
                     acs.append(1 - sp)
