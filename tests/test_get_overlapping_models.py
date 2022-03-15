@@ -9,9 +9,9 @@ def linkfile():
     return "tests/data/test_linkage.bed"
 
 @pytest.fixture
-def db():
+def db(tmpdir):
     from pita.annotationdb import AnnotationDb
-    db = AnnotationDb(conn="sqlite:///pita_test_database.db",
+    db = AnnotationDb(conn = "sqlite:///{}/pita_test_database.db".format(tmpdir),
             new=True)
     return db
 
