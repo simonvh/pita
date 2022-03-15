@@ -46,7 +46,7 @@ class AnnotationDb(object):
         self.cache_feature_stats = {}
 
     def _init_session(self, conn, new=False):
-        self.engine = create_engine(conn)
+        self.engine = create_engine(conn, connect_args={"timeout": 5})
         self.engine.raw_connection().connection.text_factory = str
 
         # recreate database
@@ -113,7 +113,7 @@ class AnnotationDb(object):
         return yaml.dump(dump_dict)
 
     def load_yaml(self, fname):
-        data = yaml.load(open(fname))
+        data = yaml.safe_load(open(fname))
         source_map = {}
 
         if not data["feature"]:
@@ -127,10 +127,13 @@ class AnnotationDb(object):
             source_map[old_id] = r.id
 
         t = ["chrom", "start", "end", "strand", "ftype", "seq"]
-        self.engine.execute(
-            Feature.__table__.insert(),
-            [dict(zip(t, row[1:])) for row in data["feature"]],
-        )
+
+        for row in data["feature"]:
+            self.session.add(Feature(**dict(zip(t, row[1:]))))
+        # self.engine.execute(
+        #     Feature.__table__.insert(),
+        #     [dict(zip(t, row[1:])) for row in data["feature"]],
+        # )
 
         self.session.commit()
 
@@ -150,18 +153,22 @@ class AnnotationDb(object):
             "extend_up",
             "extend_down",
         ]
-
-        self.engine.execute(
-            FeatureReadCount.__table__.insert(),
-            [dict(zip(t, row)) for row in data["read_count"]],
-        )
+        for row in data["read_count"]:
+            self.session.add(FeatureReadCount(**dict(zip(t, row))))
+        # self.engine.execute(
+        #     FeatureReadCount.__table__.insert(),
+        #     [dict(zip(t, row)) for row in data["read_count"]],
+        # )
 
         if data["evidence"]:
             t = ["name", "source"]
-            result = self.engine.execute(
-                Evidence.__table__.insert(),
-                [dict(zip(t, row[1:])) for row in data["evidence"]],
-            )
+
+            for row in data["evidence"]:
+                self.session.add(Evidence(**dict(zip(t, row[1:]))))
+            # result = self.engine.execute(
+            #     Evidence.__table__.insert(),
+            #     [dict(zip(t, row[1:])) for row in data["evidence"]],
+            # )
 
             self.session.commit()
             first = self.fetch_evidence(data["evidence"][0][1:])
@@ -176,10 +183,12 @@ class AnnotationDb(object):
             ]
 
             t = ["feature_id", "evidence_id"]
-            self.engine.execute(
-                FeatureEvidence.__table__.insert(),
-                [dict(zip(t, row)) for row in data["feature_evidence"]],
-            )
+            for row in data["feature_evidence"]:
+                self.session.add(FeatureEvidence(**dict(zip(t, row))))
+            # self.engine.execute(
+            #     FeatureEvidence.__table__.insert(),
+            #     [dict(zip(t, row)) for row in data["feature_evidence"]],
+            # )
 
     def add_transcript(self, name, source, exons):
         """
@@ -582,6 +591,7 @@ class AnnotationDb(object):
             fnames = [fnames]
 
         for i, fname in enumerate(fnames):
+            print("#", i, fname)
             self.logger.debug("Creating read_source for %s %s", name, fname)
             read_source = get_or_create(
                 self.session, ReadSource, name=name, source=fname
@@ -600,9 +610,11 @@ class AnnotationDb(object):
             )
 
             self.logger.debug("Reading results, save to exon stats")
+            print("committed yo")
 
             insert_vals = []
             for row in result:
+                print("inserting")
                 try:
                     vals = row.strip().split("\t")
                     e = "%s:%s-%s" % (vals[0], vals[1], vals[2])
@@ -621,10 +633,18 @@ class AnnotationDb(object):
                 "extend_up",
                 "extend_down",
             ]
-            result = self.engine.execute(
-                FeatureReadCount.__table__.insert(),
-                [dict(zip(t, row)) for row in insert_vals],
-            )
+            print(insert_vals)
+            print([dict(zip(t, row)) for row in insert_vals])
+            print("engine execute")
+            for row in insert_vals:
+                self.session.add(FeatureReadCount(**dict(zip(t, row))))
+            self.session.commit()
+            # session.add(Tags(tag_id=1, post_id=2))
+            # session.commit()
+            # result = self.engine.execute(
+            #     FeatureReadCount.__table__.insert(),
+            #     [dict(zip(t, row)) for row in insert_vals],
+            # )
 
         tmp.close()
 

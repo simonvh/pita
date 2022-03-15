@@ -99,8 +99,7 @@ def test_add_transcripts(three_transcripts, db):
 #    assert 2 == len(db_3t.get_initial_exons())
  
 def test_retrieve_models(db_5t):
-    models = sorted(db_5t.get_best_variants([]), lambda x,y: cmp(len(x), len(y)))
-
+    models = sorted(db_5t.get_best_variants([]), key=lambda x:len(x))
     assert 2 == len(models)
     assert 3 == len(models[0])
     assert 3 == len(models[1])
@@ -123,7 +122,7 @@ def test_long_exon_filter(db, t1, t2):
         db.add_transcript("{0}{1}{2}".format("t2", "|", tname), source, exons)
     
     c = DbCollection(db, [], chrom="chr1")
-    c.filter_long(l=500, evidence=1)
+    c.filter_long(length=500, evidence=1)
 
     models = []
     for cluster in c.get_best_variants([]):

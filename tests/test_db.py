@@ -75,16 +75,23 @@ def transcripts():
             ]
     return transcripts
 
-@pytest.yield_fixture
+@pytest.fixture
 def db(tmpdir, transcripts):
     from pita.annotationdb import AnnotationDb
+    print(tmpdir)
     conn = "sqlite:///{}/pita_test.db".format(tmpdir)
     with AnnotationDb(conn=conn, new=True) as d:
         for name, source, exons in transcripts:
+            print(name, source, exons)
             d.add_transcript(name, source, exons)
+            print("YOHO!")
+        for name, source, exons in transcripts:
+            print("flop", source, exons)
+            d.add_transcript("flop", source, exons)
+        print("DONEYEH")
         yield d
 
-@pytest.yield_fixture
+@pytest.fixture
 def empty_db(tmpdir):
     from pita.annotationdb import AnnotationDb
     conn = "sqlite:///{}/pita_test.db".format(tmpdir)
@@ -97,7 +104,9 @@ def empty_db(tmpdir):
 #scaffold_1  18250000    18300000    300
 
 def test_read_statistics(bam_file, db):
+    print("(((((INSIDE THE TEST!")
     db.get_read_statistics("scaffold_1", bam_file, "test")
+    print("flop")
     exons = db.get_exons()
     counts = [e.read_counts[0].count for e in exons]
     assert [1,64,300] == sorted(counts)

@@ -25,7 +25,7 @@ def read_statistics(fname, rmrepeat=False, rmdup=False, mapped=False):
 
     stdout, _ = p.communicate()
 
-    n = int(stdout.strip())
+    n = int(stdout.decode().strip())
 
     return n
 
