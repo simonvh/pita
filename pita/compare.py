@@ -7,16 +7,16 @@ import numpy as np
 def compare_annotation(models1, models2):
 
     ga = HTSeq.GenomicArrayOfSets("auto", stranded=False)
-    l = {}
+    length = {}
     result = {}
     for name, x, exons in models1:
         # exons[0][1] = exons[0][2] - 10
         # exons[-1][2] = exons[-1][1] + 10
-        l[name] = 0.0
+        length[name] = 0.0
         for exon in exons:
             iv = HTSeq.GenomicInterval(*exon)
             ga[iv] += name
-            l[name] += iv.end - iv.start
+            length[name] += iv.end - iv.start
 
     for name, x, exons in models2:
         # exons[0][1] = exons[0][2] - 10
@@ -35,12 +35,12 @@ def compare_annotation(models1, models2):
         acs = []
 
         result[name] = {}
-        for oname, length in overlap.items():
+        for oname, olength in overlap.items():
 
             # print "#", name, tlen, oname, l[oname], length
             # print name, oname
-            sn = length / l[oname]
-            sp = length / tlen
+            sn = olength / length[oname]
+            sp = olength / tlen
             ac = (sn + sp) / 2
             acs.append(ac)
             result[name][oname] = [sn, sp, ac]
@@ -70,7 +70,7 @@ def compare_annotation_files(fname1, fname2):
                 cluster[transcript1] = d.keys()
             else:
                 for t in d.keys():
-                    if not t in cluster[transcript1]:
+                    if t not in cluster[transcript1]:
                         cluster[transcript1].append(t)
             for t1 in cluster[transcript1]:
                 t2_cluster.setdefault(t1, []).append(transcript2)

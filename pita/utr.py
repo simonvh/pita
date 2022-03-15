@@ -233,7 +233,7 @@ def calculate_updated_bed(bedfile, bamfiles):
         exonsizes = [int(x) for x in vals[10].split(",") if x]
         exonstarts = [int(x) for x in vals[11].split(",") if x]
 
-        if utr.has_key(name):
+        if name in utr:
             sys.stderr.write("Updating {}\n".format(name))
             utr_start, utr_end = utr[name]
 

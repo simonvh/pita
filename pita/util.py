@@ -1,3 +1,5 @@
+import os
+
 from pita.config import SAMTOOLS
 from pita.config import config
 from subprocess import Popen, PIPE
@@ -163,12 +165,12 @@ def get_splice_score(a, s_type=5):
         if not maxent:
             exe = base
         else:
-            exe = os.path.join(max_ent, base)
+            exe = os.path.join(maxent, base)
         try:
             sp.check_output("{}3.pl".format(exe), stderr=sp.STDOUT)
         except sp.CalledProcessError:
             maxent_base = exe
-        except:
+        except Exception:
             pass
 
     if not maxent_base:
@@ -191,8 +193,9 @@ def get_splice_score(a, s_type=5):
                 score += float(vals[-1])
             except ValueError:
                 logger.error("valueError, skipping: {}".format(vals))
-            except:
+            except Exception as e:
                 logger.error("Something unexpected happened")
+                logger.error(str(e))
     return score
 
 

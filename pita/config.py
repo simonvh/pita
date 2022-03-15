@@ -69,10 +69,10 @@ class PitaConfig(object):
         # only use chromosome specified in config file
         self.chroms = self.chroms.keys()
         if "chromosomes" in self.config and self.config["chromosomes"]:
-            if type(self.config["chromosomes"]) == type([]):
-                self.chroms = self.config["chromosomes"]
-            else:
+            if isinstance(self.config["chromosomes"], str):
                 self.chroms = [self.config["chromosomes"]]
+            else:
+                self.chroms = self.config["chromosomes"]
 
         # check the data files
         self._check_data_files()
@@ -93,7 +93,7 @@ class PitaConfig(object):
 
     def _parse_annotation(self, reannotate=False):
 
-        if not self.config.has_key("annotation") or len(self.config["annotation"]) == 0:
+        if "annotation" not in self.config or len(self.config["annotation"]) == 0:
             self.logger.error("No annotation files specified.")
             sys.exit(1)
 
@@ -104,19 +104,19 @@ class PitaConfig(object):
             fname = os.path.join(self.base, d["path"])
             t = d["type"].lower()
             min_exons = 2
-            if d.has_key("min_exons"):
+            if "min_exons" in d:
                 min_exons = d["min_exons"]
 
-            if d.has_key("keep") and d["keep"]:
+            if "keep" in d:
                 self.keep.append(fname)
 
-            if d.has_key("filter") and d["filter"]:
+            if "filter" in d:
                 self.filter.append(fname)
 
-            if d.has_key("experimental") and d["experimental"]:
+            if "experimental" in d:
                 self.experimental.append(fname)
 
-            if not t in VALID_TYPES:
+            if t not in VALID_TYPES:
                 self.logger.error("Invalid type: %s", t)
                 sys.exit(1)
             if not os.path.exists(fname):
@@ -138,12 +138,12 @@ class PitaConfig(object):
         # data  config
         self.logger.info("Checking data files")
         self.data = []
-        if self.config.has_key("data") and self.config["data"]:
+        if "data" in self.config and self.config["data"]:
             for d in self.config["data"]:
                 self.logger.debug("data: %s", d)
                 d.setdefault("up", 0)
                 d.setdefault("down", 0)
-                if type("") == type(d["path"]):
+                if isinstance(d["path"], str):
                     d["path"] = [d["path"]]
 
                 d.setdefault("feature", "all")

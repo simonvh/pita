@@ -1,7 +1,7 @@
 import os
 import sys
 import logging
-from sqlalchemy import or_, and_, func
+from sqlalchemy import and_, func
 from sqlalchemy import create_engine
 from sqlalchemy.orm import scoped_session, sessionmaker, subqueryload
 from pita.db_backend import (
@@ -374,7 +374,7 @@ class AnnotationDb(object):
                 .filter(Feature.chrom == chrom)
                 .outerjoin(FeatureReadCount)
                 .group_by(Feature)
-                .having(func.sum(FeatureReadCount.count) == None)
+                .having(func.sum(FeatureReadCount.count) is None)
             )
 
             for splice in fs:
@@ -409,7 +409,7 @@ class AnnotationDb(object):
                 .filter(Feature.chrom == chrom)
                 .outerjoin(FeatureReadCount)
                 .group_by(Feature)
-                .having(func.sum(FeatureReadCount.count) == None)
+                .having(func.sum(FeatureReadCount.count) is None)
             )
 
             features += [f for f in fs if len(f.evidences) > 0]
@@ -453,12 +453,12 @@ class AnnotationDb(object):
             )
             return q.all()[0]
 
-    def get_long_exons(self, chrom, l, evidence):
+    def get_long_exons(self, chrom, length, evidence):
         query = self.session.query(Feature)
         query = query.filter(Feature.flag.op("IS NOT")(True))
         query = query.filter(Feature.ftype == "exon")
         query = query.filter(Feature.chrom == chrom)
-        query = query.filter(Feature.end - Feature.start >= l)
+        query = query.filter(Feature.end - Feature.start >= length)
         return [e for e in query if len(e.evidences) <= evidence]
 
     def filter_repeats(self, chrom, rep):
@@ -623,8 +623,9 @@ class AnnotationDb(object):
                         insert_vals.append(
                             [read_source.id, exon.id, c, span, extend[0], extend[1]]
                         )
-                except:
+                except Exception as e:
                     self.logger.info("binned_stat line skipped: {}".format(row))
+                    self.logger.info(str(e))
             t = [
                 "read_source_id",
                 "feature_id",

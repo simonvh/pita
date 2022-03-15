@@ -1,5 +1,7 @@
 from sqlalchemy import create_engine
-from pita.db_backend import *
+from sqlalchemy.orm import sessionmaker, scoped_session
+
+from pita.db_backend import Base
 
 
 def db_session(conn, new=False):

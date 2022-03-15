@@ -6,7 +6,7 @@ from pita.config import DEBUG_LEVELS
 def setup_logging(basename, debug_level):
     debug_level = debug_level.upper()
 
-    if not debug_level in DEBUG_LEVELS:
+    if debug_level not in DEBUG_LEVELS:
         sys.stderr.write("Invalid debug level {0}\n".format(debug_level))
         sys.stderr.write("Valid values are {0}\n".format(",".join(DEBUG_LEVELS)))
         sys.exit(1)

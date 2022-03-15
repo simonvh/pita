@@ -14,16 +14,16 @@ except RRuntimeError:
     cp = importr("changepoint")
 
 
-def cpt(l):
+def cpt(data):
     """
     Call the mean.cpt function from the R changepoint package and
     return the changepoint as a float.
     """
 
-    vector = robjects.FloatVector([x for x in l])
+    vector = robjects.FloatVector([x for x in data])
     result = cp.cpt_mean(vector)
 
     try:
         return float(cp.cpts(result)[0])
-    except:
+    except Exception:
         return None

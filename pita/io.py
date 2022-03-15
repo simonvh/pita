@@ -87,12 +87,12 @@ def tabix_overlap(fname1, fname2, chrom, fraction):
         yield f
 
 
-def merge_exons(starts, sizes, l=0):
+def merge_exons(starts, sizes, length=0):
     merge = []
     for i, (start1, start2, size) in enumerate(
         zip(starts[:-1], starts[1:], sizes[:-1])
     ):
-        if start1 + size + l >= start2:
+        if start1 + size + length >= start2:
             merge.append(i + 1)
 
     if len(merge) == 0:
@@ -204,10 +204,10 @@ def read_bed_transcripts(fobj, fname="", min_exons=1, merge=0):
                         "read_bed: not adding %s, filter on minimum exons", vals[3]
                     )
 
-            except:
-                print("Error parsing BED file")
-                print(line)
-                raise
+            except Exception as e:
+                logger.error("Error parsing BED file")
+                logger.error(line)
+                logger.error(str(e))
                 sys.exit(1)
 
         line = fobj.readline()

@@ -49,9 +49,10 @@ def load_chrom_data(conn, new, chrom, anno_files, data, index=None):
                     chrom, fname, name=name, span=span, extend=extend, nreads=None
                 )
 
-    except:
+    except Exception as e:
+        logger.error(str(e))
+
         logger.exception("Error on %s", chrom)
-        raise
 
 
 def get_chrom_models(
@@ -168,11 +169,12 @@ def get_chrom_models(
                         discard[gene1] = 1
 
         logger.info("Done calling transcripts for %s", chrom)
-        result = [v for m, v in models.items() if not m in discard]
+        result = [v for m, v in models.items() if m not in discard]
         # print "VV", result
         return [[name, [e.to_flat_exon() for e in exons]] for name, exons in result]
 
-    except:
+    except Exception as e:
+        logger.error(str(e))
         logger.exception("Error on %s", chrom)
 
     return []
