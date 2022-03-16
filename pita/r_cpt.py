@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 from rpy2.robjects.packages import importr
-from rpy2.rinterface import RRuntimeError
+from rpy2.rinterface_lib.embedded import RRuntimeError
 import rpy2.robjects as robjects
 
 # Try to load changepoint library, install it if it's not installed

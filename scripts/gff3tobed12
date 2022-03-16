@@ -38,7 +38,7 @@ for rec in GFF.parse(fobj):
             name = f.qualifiers["Parent"][0]
             typ = f.type
             exons.append([start, end, name, strand, typ])
-        exons = sorted(exons, lambda x, y: cmp(x[0], y[0]))
+        exons = sorted(exons, key=lambda x: x[0])
         cds_start = exons[0][0]
         cds_end = exons[-1][1]
         if exons[0][4].upper().find("UTR") > -1:

@@ -19,7 +19,7 @@ from pita.io import exons_to_tabix_bed, tabix_overlap
 from fluff.track import BamTrack
 from tempfile import NamedTemporaryFile
 from genomepy import Genome
-
+logger = logging.getLogger("pita")
 
 class AnnotationDb(object):
     def __init__(
@@ -37,7 +37,6 @@ class AnnotationDb(object):
         self.genome = None
         if index:
             if isinstance(index, Genome):
-                print("%%%%", index)
                 self.genome = index
             else:
                 self.genome = Genome(index)
@@ -214,25 +213,28 @@ class AnnotationDb(object):
 
         seqs = []
         for exon in exons:
+            #logger.info("get exon sequence")
+            #logger.info(str(exon))
             seq = ""
             real_seq = ""
             if self.genome:
                 seq = ""
+                real_seq = self.genome[chrom][exon[1]:exon[2]]
+                if strand == "-":
+                    real_seq = real_seq[::-1].complement
+                real_seq = real_seq.seq
+
                 try:
-                    seq = self.genome[chrom][exon[1] - 20 : exon[2] + 20]
+                    seq = self.genome[chrom][exon[1] - 20: exon[2] + 20]
                     if strand == "-":
                         # Reverse complement
                         seq = seq[::-1].complement
-                    real_seq = seq[20:-20]
                     seq = seq.seq
-                    real_seq = seq.seq
-                except Exception:
-                    real_seq = self.genome[chrom][exon[1] : exon[2]]
-                    if strand == "-":
-                        # Reverse complement
-                        real_seq = real_seq[::-1].complement
-                    real_seq = real_seq.seq
+                except Exception as e:
+                    logger.error(e)
                 seqs.append(seq)
+            #print(f">seq\n{seq}")
+            #print(f">real_seq\n{real_seq}")
 
             exon = get_or_create(
                 self.session,
@@ -244,6 +246,7 @@ class AnnotationDb(object):
                 ftype="exon",
                 seq=real_seq,
             )
+            #print(exon)
             exon.evidences.append(evidence)
 
         splice_donors = []
@@ -279,9 +282,16 @@ class AnnotationDb(object):
                 if len(seqs) > (i + 1) and len(seqs[i]) > 46:
                     f = ["{}_{}".format(name, i + 1), seqs[i][:23]]
                     splice_acceptors.append(f)
+        #print("donors")
+        #print(splice_donors)
+        #print("acceptors")
+        #print(splice_acceptors)
 
         donor_score = get_splice_score(splice_donors, 5)
         acceptor_score = get_splice_score(splice_acceptors, 3)
+        
+        #print("donor_score", donor_score)
+        #print("acceptor_score", acceptor_score)
         if donor_score + acceptor_score < 0:
             self.logger.warning("Skipping %s, splicing not OK!", name)
             self.session.rollback()
@@ -591,7 +601,6 @@ class AnnotationDb(object):
             fnames = [fnames]
 
         for i, fname in enumerate(fnames):
-            print("#", i, fname)
             self.logger.debug("Creating read_source for %s %s", name, fname)
             read_source = get_or_create(
                 self.session, ReadSource, name=name, source=fname
@@ -610,11 +619,9 @@ class AnnotationDb(object):
             )
 
             self.logger.debug("Reading results, save to exon stats")
-            print("committed yo")
 
             insert_vals = []
             for row in result:
-                print("inserting")
                 try:
                     vals = row.strip().split("\t")
                     e = "%s:%s-%s" % (vals[0], vals[1], vals[2])
@@ -634,9 +641,6 @@ class AnnotationDb(object):
                 "extend_up",
                 "extend_down",
             ]
-            print(insert_vals)
-            print([dict(zip(t, row)) for row in insert_vals])
-            print("engine execute")
             for row in insert_vals:
                 self.session.add(FeatureReadCount(**dict(zip(t, row))))
             self.session.commit()

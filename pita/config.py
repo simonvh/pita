@@ -25,7 +25,7 @@ class PitaConfig(object):
     def load(self, fname, reannotate=False):
         # Parse YAML config file
         f = open(fname, "r")
-        self.config = yaml.load(f)
+        self.config = yaml.safe_load(f)
         f.close()
 
         self.db_conn = "sqlite:///pita_database.db"

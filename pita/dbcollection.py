@@ -98,8 +98,6 @@ class DbCollection(object):
             for node, ftype in nodes:
                 self.graph.add_node(node, ftype=ftype)
 
-            print("%%%")
-            print([n[0] for n in nodes])
             nx.add_path(self.graph, [n[0] for n in nodes], weight=-1, ftype="exon")
             self._set_edge_weight(feature, nodes[0][0], nodes[1][0], weights)
         # Intron
@@ -129,9 +127,6 @@ class DbCollection(object):
             source = "source_{}".format(i + 1)
             sink = "sink_{}".format(i + 1)
 
-            print("***")
-            print(self.graph.out_degree(model))
-            print([k for k in self.graph.out_degree(model)])
             ends = [
                 k
                 for k, v in self.graph.out_degree(model)
@@ -173,29 +168,20 @@ class DbCollection(object):
             sink = source.replace("source", "sink")
             try:
                 pred, dis = nx.bellman_ford_predecessor_and_distance(self.graph, source)
-                print("((")
-                print(pred)
-                print()
-                print(dis)
-                print("))")
                 if sink not in pred:
                     continue
                 t = sink
                 best_variant = []
-                print(t)
+                
                 while pred[t]:
-                    print("Voeilie")
                     best_variant.append(pred[t][0])
                     t = pred[t][0]
-                    print(t)
 
                 p = re.compile(r"(.+):(\d+)([+-])")
                 model = []
                 strand = "+"
                 for i in range(0, len(best_variant) - 1, 2):
                     n1, n2 = best_variant[i : i + 2]
-                    print("FLLLOOP")
-                    print(n1, n2)
                     e = self._nodes_to_exon(n1, n2)
                     if e:
                         strand = e.strand

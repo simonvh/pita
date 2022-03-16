@@ -1,4 +1,6 @@
 pita*log
+.cache
+.eggs
 
 *.py[co]
 
@@ -25,3 +27,10 @@ pip-log.txt
 tests/data/tmp/*
 tests/data/index/*.params
 tests/data/index/*.index
+
+
+tests/data/test_gene_bed.cdna.fa
+tests/data/test_gene_bed.log
+tests/data/test_gene_bed.notExtended.bed
+tests/data/test_gene_bed.protein.fa
+

@@ -152,9 +152,11 @@ def read_gff_transcripts(fobj, fname="", min_exons=1, merge=0):
                 # logger.debug("subfeatures: {0}", gene.sub_features)
                 for exon in [f for f in gene.sub_features if f.type == "exon"]:
                     # link[gene.id] = link.setdefault(gene.id, 0) + 1
-                    start = int(exon.location.start.position)  # - 1
-                    end = int(exon.location.end.position)
                     strand = smap[exon.strand]
+                    start = int(exon.location.start.position)  # - 1
+                    if strand == "+":
+                        start += 1 
+                    end = int(exon.location.end.position)
                     exons.append([chrom, start, end, strand])
                 logger.debug("%s: %s - %s exons", fname, gene.id, len(exons))
                 if len(exons) >= min_exons:
@@ -189,7 +191,7 @@ def read_bed_transcripts(fobj, fname="", min_exons=1, merge=0):
                 sizes = [int(x) for x in vals[10].strip(",").split(",")]
                 starts = [int(x) for x in vals[11].strip(",").split(",")]
 
-                starts, sizes = merge_exons(starts, sizes, l=merge)
+                starts, sizes = merge_exons(starts, sizes, length=merge)
 
                 exons = [
                     [vals[0], chromStart + start, chromStart + start + size, vals[5]]

@@ -1,0 +1,8 @@
+annotation:
+- {name: bed, path: test_gene.bed, type: bed}
+#- {name: gtf, path: gencode.gtf, type: gtf}
+chromosomes: [chr9]
+data_path: tests/data/gencode_test
+database: sqlite:///pita_database.db
+scoring:
+- {name: orf, type: orf, weight: 2}

@@ -187,6 +187,7 @@ def get_splice_score(a, s_type=5):
     p = sp.Popen(cmd, shell=True, stdout=sp.PIPE)
     score = 0
     for line in p.stdout.readlines():
+        #print("maxent: " + line.decode().strip())
         vals = line.decode().strip().split("\t")
         if len(vals) > 1:
             try:
