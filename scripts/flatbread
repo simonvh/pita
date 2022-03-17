@@ -26,11 +26,11 @@ outname = args.output
 
 # Parse YAML config file
 f = open(configfile, "r")
-config = yaml.load(f)
+config = yaml.safe_load(f)
 
 # Data directory
 base = "."
-if config.has_key("data_path"):
+if "data_path" in config:
     base = config["data_path"]
 
 # Output data directoy
