@@ -45,7 +45,7 @@ chroms = {}
 a = pybedtools.BedTool(bedfile)
 for f in a:
     chroms[f[0]] = 1
-config["chromosomes"] = chroms.keys()
+config["chromosomes"] = list(chroms.keys())
 
 
 # Do all intersections with BED file
@@ -95,8 +95,8 @@ for f in config["data"]:
             if stdout.strip():
                 cmd = "samtools view -bS {0} > {1} && mv {1} {0}"
                 sp.call(cmd.format(tmp.name, out), shell=True)
-                cmd = "samtools sort {0} {1} && samtools index {2}".format(
-                    tmp.name, out.replace(".bam", ""), out
+                cmd = "samtools sort {0} -o {1} && samtools index {1}".format(
+                    tmp.name, out
                 )
                 sp.call(cmd, shell=True)
                 tmp.close()
