@@ -245,6 +245,11 @@ class DbCollection(object):
                 elif idtype == "orf":
                     start, end = longest_orf(feature.seq)
                     id_value = end - start
+                elif idtype == "splice":
+                    # intron feature
+                    pass
+                else:
+                    raise ValueError(f"Unknown type: {idtype}")
             elif d["ftype"] == "splice_junction":
                 if idtype == "splice":
                     f = self._nodes_to_splice_junction(n1, n2)
