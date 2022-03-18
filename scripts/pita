@@ -1,13 +1,14 @@
 #!/usr/bin/env python
 from pita.model import get_chrom_models, load_chrom_data
-from pita.util import model_to_bed, read_statistics, exons_to_seq, longest_orf
+from pita.util import model_to_bed, exons_to_seq, longest_orf
 from pita.log import setup_logging
 from pita.config import config
 from pita.annotationdb import AnnotationDb
-from pita.utr import *
+from pita.utr import print_updated_bed
 import os
 import sys
 import argparse
+import concurrent.futures
 import multiprocessing as mp
 from functools import partial
 import signal
@@ -171,40 +172,42 @@ if threads > 1:
     manager = mp.Manager()
     lock = manager.Lock()
     q = manager.Queue()
-    pool = mp.Pool(threads, init_worker, maxtasksperchild=1)
 
     try:
+        with concurrent.futures.ProcessPoolExecutor(
+            max_workers=threads + 1
+        ) as executor:
+            # put listener to work first
+            listen = executor.submit(listener, q, lock)
 
-        # put listener to work first
-        watcher = pool.apply_async(listener, args=(q, lock))
+            # do the main work
+            partialAnnotate = partial(
+                annotate_chrom,
+                conn=config.db_conn,
+                q=q,
+                anno_files=config.anno_files,
+                data=config.data,
+                repeats=config.repeats,
+                weight=config.weight,
+                prune=config.prune,
+                keep=config.keep,
+                filter_ev=config.filter,
+                experimental=config.experimental,
+                index=index,
+                reannotate=args.reannotate,
+            )
 
-        # do the main work
-        partialAnnotate = partial(
-            annotate_chrom,
-            conn=config.db_conn,
-            q=q,
-            anno_files=config.anno_files,
-            data=config.data,
-            repeats=config.repeats,
-            weight=config.weight,
-            prune=config.prune,
-            keep=config.keep,
-            filter_ev=config.filter,
-            experimental=config.experimental,
-            index=index,
-            reannotate=args.reannotate,
-        )
-        pool.map(partialAnnotate, chroms)
+            futures = [executor.submit(partialAnnotate, chrom) for chrom in chroms]
+            results = [
+                future.result() for future in concurrent.futures.as_completed(futures)
+            ]
+            q.put("kill")
 
-        # kill the queue!
-        q.put("kill")
-        pool.close()
-        pool.join()
+            listen = [future for future in concurrent.futures.as_completed([listen])]
+            listen[0].result()
 
     except KeyboardInterrupt:
         logger.exception("Caught KeyboardInterrupt, terminating workers")
-        pool.terminate()
-        pool.join()
 else:
     for chrom in chroms:
         if not args.reannotate:
