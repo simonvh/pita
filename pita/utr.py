@@ -26,13 +26,15 @@ def call_cpt(start, end, strand, data, min_reads=5, min_log2_ratio=1.5, upstream
 
     pt = len(counts)
     ratio = 0
-    while pt > pt_cutoff and ratio < 1:
+    while pt is not None and pt > pt_cutoff and ratio < 1:
         sys.stderr.write("cpt {}\n".format(pt))
         pt = cpt(counts[:pt])
-        if pt > pt_cutoff:
+        if pt and pt > pt_cutoff:
+            pt = int(pt)
             ratio = np.log2(counts[:pt].mean() / (counts[pt:].mean()) + 0.1)
+    sys.stderr.write("HOEI")
 
-    if pt > pt_cutoff:
+    if pt is not None and pt > pt_cutoff:
         # Add to the changepoint while the number of reads is above min_reads
         while pt < len(counts) and counts[pt] >= min_reads:
             pt += 1
@@ -62,7 +64,7 @@ def call_utr(inbed, bamfiles, utr5=False, utr3=True):
     if len(transcripts) == 0:
         return
 
-    td = dict([(t[0].split("|")[1] + "_", t[2]) for t in transcripts])
+    td = dict([(t[0].split("|")[1], t[2]) for t in transcripts])
 
     # Trying to fix the scaffold struggles
     # td = {}
@@ -81,14 +83,17 @@ def call_utr(inbed, bamfiles, utr5=False, utr3=True):
     bed2exonbed(inbed, exonbed.name)
 
     # Determine boundaries using bedtools
-    genes = pybedtools.BedTool(inbed)
-    exons = pybedtools.BedTool(exonbed.name)
+    genes = pybedtools.BedTool(inbed).sort()
+    exons = pybedtools.BedTool(exonbed.name).sort()
 
     tmp = NamedTemporaryFile(prefix="pita.", suffix=".bed", mode="w")
 
     EXTEND = 10000
     sys.stderr.write("Determining gene boundaries determined by closest gene\n")
+    
+    print(list(td.keys()))
     for x in genes.closest(exons, D="a", io=True, iu=True):
+        
         transcript = td[x[3]]
 
         # Extend to closest exon or EXTEND, whichever is closer
@@ -115,7 +120,7 @@ def call_utr(inbed, bamfiles, utr5=False, utr3=True):
     tmp.flush()
 
     tmpsam = NamedTemporaryFile(prefix="pita.", suffix=".sam", mode="w")
-    tmpbam = NamedTemporaryFile(prefix="pita.", mode="w")
+    tmpbam = NamedTemporaryFile(prefix="pita.", suffix=".bam", mode="w")
 
     # Retrieve header from first BAM file
     sp.call("samtools view -H {} > {}".format(bamfiles[0], tmpsam.name), shell=True)
@@ -136,9 +141,9 @@ def call_utr(inbed, bamfiles, utr5=False, utr3=True):
     tmp_check.close()
 
     # Created sorted and index bam
-    cmd = "samtools view -Sb {} | samtools sort -m 4G - {}"
+    cmd = "samtools view -Sb {} | samtools sort -m 4G -o {}"
     sp.call(cmd.format(tmpsam.name, tmpbam.name), shell=True)
-    sp.call("samtools index {}.bam".format(tmpbam.name), shell=True)
+    sp.call("samtools index {}".format(tmpbam.name), shell=True)
 
     # Close and remove temporary SAM file
     tmpsam.close()
@@ -147,7 +152,7 @@ def call_utr(inbed, bamfiles, utr5=False, utr3=True):
     cmd = "bedtools coverage -abam {} -b {} -d -split "
 
     p = sp.Popen(
-        cmd.format(tmpbam.name + ".bam", tmp.name),
+        cmd.format(tmpbam.name, tmp.name),
         shell=True,
         stdout=sp.PIPE,
         bufsize=1,
@@ -159,7 +164,8 @@ def call_utr(inbed, bamfiles, utr5=False, utr3=True):
     current = [None]
     utr = {}
     for line in iter(p.stdout.readline, b""):
-        vals = line.strip().split("\t")
+        sys.stderr.write(line.decode())
+        vals = line.decode().strip().split("\t")
         if vals[3] != current[0]:
             if len(data) > 0:
                 result = call_cpt(
@@ -176,7 +182,7 @@ def call_utr(inbed, bamfiles, utr5=False, utr3=True):
         if result:
             utr[current[0]] = result
 
-    for fname in [tmpbam.name + ".bam", tmpbam.name + ".bam.bai"]:
+    for fname in [tmpbam.name + ".bai"]:
         if os.path.exists(fname):
             os.unlink(fname)
 
@@ -188,7 +194,7 @@ def call_utr(inbed, bamfiles, utr5=False, utr3=True):
 
 # A "nice" hack to implement 5' en 3' utr extension
 def flip_bed_strands(bedfile):
-    temp = NamedTemporaryFile(delete=False)
+    temp = NamedTemporaryFile(delete=False, mode="w")
     for line in open(bedfile):
         line = line.strip().split("\t")
         if line[5] == "-":
@@ -217,7 +223,7 @@ def print_updated_bed(bedfile, bamfiles):
 
 
 def calculate_updated_bed(bedfile, bamfiles):
-    temp = NamedTemporaryFile(delete=False)
+    temp = NamedTemporaryFile(delete=False, mode="w")
 
     utr = call_utr(bedfile, bamfiles)
     for line in open(bedfile):

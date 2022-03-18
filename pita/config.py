@@ -53,7 +53,7 @@ class PitaConfig(object):
 
         # Pita UTR
         self.pitaUTR = False
-        if "extendUtr" in self.config:
+        if "extend_utr" in self.config:
             self.pitaUTR = True
 
         # Scoring weight
