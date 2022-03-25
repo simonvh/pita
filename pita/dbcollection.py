@@ -254,6 +254,8 @@ class DbCollection(object):
                 if idtype == "splice":
                     f = self._nodes_to_splice_junction(n1, n2)
                     id_value = feature_stats.get(identifier, 0)
+                elif idtype == "evidence":
+                    id_value = len(feature.evidences)
             d[identifier] = id_value
             if id_value > self.max_id_value[identifier]:
                 self.max_id_value[identifier] = id_value
