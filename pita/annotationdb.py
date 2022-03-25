@@ -1,7 +1,7 @@
 import os
 import sys
 import logging
-from sqlalchemy import and_, func
+from sqlalchemy import and_, func, or_
 from sqlalchemy import create_engine
 from sqlalchemy.orm import scoped_session, sessionmaker, subqueryload
 from pita.db_backend import (
@@ -31,10 +31,12 @@ def safe_score5(seq, matrix=None):
         return 0
     return score5(seq, matrix=matrix)
 
+
 def safe_score3(seq, matrix=None):
     if "N" in seq.upper():
         return 0
     return score3(seq, matrix=matrix)
+
 
 class AnnotationDb(object):
     def __init__(
@@ -227,51 +229,59 @@ class AnnotationDb(object):
         evidence = get_or_create(self.session, Evidence, name=name, source=source)
 
         seqs = []
-        exon_seqs = [] 
+        exon_seqs = []
         for exon in exons:
 
             real_seq = ""
             seq = ""
             if self.genome:
-                real_seq = self.genome[chrom][exon[1]:exon[2]]
+                real_seq = self.genome[chrom][exon[1] : exon[2]]
                 if strand == "-":
                     real_seq = real_seq[::-1].complement
                 real_seq = real_seq.seq
-    
+
                 try:
-                    seq = self.genome[chrom][exon[1] - 20: exon[2] + 20]
+                    seq = self.genome[chrom][exon[1] - 20 : exon[2] + 20]
                     if strand == "-":
                         # Reverse complement
                         seq = seq[::-1].complement
                     seq = seq.seq
                 except Exception as e:
                     logger.error(e)
-                
+
             seqs.append(seq)
             exon_seqs.append(real_seq)
-           
+
         if self.genome:
             donor_scores = []
             acceptor_scores = []
-            
+
             for i, (start, end) in enumerate(
                 [(e1[2], e2[1]) for e1, e2 in zip(exons[0:-1], exons[1:])]
             ):
                 if strand == "+":
                     if len(seqs) > (i + 1) and len(seqs[i]) > 46:
-                        donor_scores.append(safe_score5(seqs[i][-23:-14], matrix=matrix5))
+                        donor_scores.append(
+                            safe_score5(seqs[i][-23:-14], matrix=matrix5)
+                        )
                     if len(seqs) > (i + 2) and len(seqs[i + 1]) > 46:
-                        acceptor_scores.append(safe_score3(seqs[i + 1][:23], matrix=matrix3))
+                        acceptor_scores.append(
+                            safe_score3(seqs[i + 1][:23], matrix=matrix3)
+                        )
                 else:
                     if len(seqs) > (i + 2) and len(seqs[i + 1]) > 46:
-                        donor_scores.append(safe_score5(seqs[i + 1][-23:-14], matrix=matrix5))
-    
+                        donor_scores.append(
+                            safe_score5(seqs[i + 1][-23:-14], matrix=matrix5)
+                        )
+
                     if len(seqs) > (i + 1) and len(seqs[i]) > 46:
-                        acceptor_scores.append(safe_score3(seqs[i + 1][:23], matrix=matrix3))
-    
+                        acceptor_scores.append(
+                            safe_score3(seqs[i + 1][:23], matrix=matrix3)
+                        )
+
             if sum(donor_scores) + sum(acceptor_scores) < 0:
                 self.logger.warning("Skipping %s, splicing not OK!", name)
-                return 
+                return
 
         for exon, exon_seq in zip(exons, exon_seqs):
             exon = get_or_create(
@@ -357,64 +367,44 @@ class AnnotationDb(object):
         )
 
     def get_splice_junctions(
-        self, chrom=None, ev_count=None, read_count=None, max_reads=None, eager=False
+        self,
+        chrom=None,
+        ev_count=None,
+        read_count=None,
+        max_reads=None,
+        keep=None,
+        eager=False,
     ):
+        if keep is None:
+            keep = []
 
         features = []
+
         if ev_count and read_count:
-            # All splices with no read, but more than one evidence source
-            fs = (
+
+            query = (
                 self.session.query(Feature)
                 .filter(Feature.flag.op("IS NOT")(True))
                 .filter(Feature.ftype == "splice_junction")
                 .filter(Feature.chrom == chrom)
-                .outerjoin(FeatureReadCount)
-                .group_by(Feature)
-                .having(func.sum(FeatureReadCount.count) < read_count)
             )
 
-            for splice in fs:
+            for splice in query:
                 self.logger.debug("Considering %s", splice)
-                for evidence in splice.evidences:
-                    self.logger.debug(str(evidence))
-                if len(splice.evidences) >= ev_count:
+
+                total_reads = sum([x.count for x in splice.read_counts])
+                keep_by_evidence = len(
+                    set([e.source for e in splice.evidences]).intersection(set(keep))
+                )
+
+                if (
+                    len(splice.evidences) >= ev_count
+                    or total_reads >= read_count
+                    or keep_by_evidence
+                ):
                     features.append(splice)
                 else:
                     self.logger.debug("not enough evidence for {}".format(splice))
-
-            fs = (
-                self.session.query(Feature)
-                .filter(Feature.flag.op("IS NOT")(True))
-                .filter(Feature.ftype == "splice_junction")
-                .filter(Feature.chrom == chrom)
-                .outerjoin(FeatureReadCount)
-                .group_by(Feature)
-                .having(func.sum(FeatureReadCount.count) is None)
-            )
-
-            for splice in fs:
-                self.logger.debug("Considering %s (no reads)", splice)
-                for evidence in splice.evidences:
-                    self.logger.debug(str(evidence))
-                if len(splice.evidences) >= ev_count:
-                    features.append(splice)
-                else:
-                    self.logger.debug("not enough evidence for {}".format(splice))
-
-            # All splices with more than x reads
-            fs = (
-                self.session.query(Feature)
-                .filter(Feature.flag.op("IS NOT")(True))
-                .filter(Feature.ftype == "splice_junction")
-                .filter(Feature.chrom == chrom)
-                .outerjoin(FeatureReadCount)
-                .group_by(Feature)
-                .having(func.sum(FeatureReadCount.count) >= read_count)
-            )
-            for f in fs:
-                self.logger.debug("Considering %s (reads)", f)
-                features.append(f)
-            # features += [f for f in fs]
 
         elif max_reads:
             fs = (

@@ -16,7 +16,7 @@ def three_transcripts():
     transcripts = [
         [
             "t1",
-            "annotation",
+            "annotation1",
             [
                 ["chr1", 100, 200, "+"],
                 ["chr1", 300, 400, "+"],
@@ -25,7 +25,7 @@ def three_transcripts():
         ],
         [
             "t2",
-            "annotation",
+            "annotation1",
             [
                 ["chr1", 50, 200, "+"],
                 ["chr1", 300, 400, "+"],
@@ -33,7 +33,7 @@ def three_transcripts():
         ],
         [
             "t3",
-            "annotation",
+            "annotation1",
             [
                 ["chr1", 300, 400, "+"],
                 ["chr1", 500, 800, "+"],
@@ -48,7 +48,7 @@ def two_transcripts():
     transcripts = [
         [
             "t1",
-            "annotation",
+            "annotation2",
             [
                 ["chr1", 700, 900, "+"],
                 ["chr1", 1100, 1200, "+"],
@@ -56,7 +56,7 @@ def two_transcripts():
         ],
         [
             "t2",
-            "annotation",
+            "annotation2",
             [
                 ["chr1", 1100, 1200, "+"],
                 ["chr1", 1400, 1600, "+"],
@@ -103,6 +103,45 @@ def db_5t(db, two_transcripts, three_transcripts):
         db.add_transcript(name, source, exons)
     c = DbCollection(db, [])
     return c
+
+
+def test_db_splice_junctions(db, two_transcripts, three_transcripts):
+    from pita.dbcollection import DbCollection
+
+    for name, source, exons in two_transcripts:
+        db.add_transcript(name, source, exons, commit=True)
+    for name, source, exons in three_transcripts:
+        db.add_transcript(name, source, exons, commit=True)
+
+    # No filter
+    introns = db.get_splice_junctions(chrom="chr1")
+    assert len(introns) == 4
+
+    # Filter, but evidence 1 means get everything
+    introns = db.get_splice_junctions(chrom="chr1", ev_count=1, read_count=1)
+    assert len(introns) == 4
+
+    # Strict filter, nothing as a result
+    introns = db.get_splice_junctions(chrom="chr1", ev_count=3, read_count=10)
+    assert len(introns) == 0
+
+    # Filter, but keep annotation2
+    introns = db.get_splice_junctions(
+        chrom="chr1", ev_count=3, read_count=10, keep=["annotation2"]
+    )
+    assert len(introns) == 2
+
+    # Filter, but keep annotation1
+    introns = db.get_splice_junctions(
+        chrom="chr1", ev_count=3, read_count=10, keep=["annotation1"]
+    )
+    assert len(introns) == 2
+
+    # Filter, but keep annotation1
+    introns = db.get_splice_junctions(
+        chrom="chr1", ev_count=3, read_count=10, keep=["annotation1", "annotation2"]
+    )
+    assert len(introns) == 4
 
 
 # def test_add_exon(db):
