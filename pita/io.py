@@ -154,8 +154,8 @@ def read_gff_transcripts(fobj, fname="", min_exons=1, merge=0):
                     # link[gene.id] = link.setdefault(gene.id, 0) + 1
                     strand = smap[exon.strand]
                     start = int(exon.location.start.position)  # - 1
-                    if strand == "+":
-                        start += 1 
+                    #if strand == "+":
+                    #    start += 1 
                     end = int(exon.location.end.position)
                     exons.append([chrom, start, end, strand])
                 logger.debug("%s: %s - %s exons", fname, gene.id, len(exons))
