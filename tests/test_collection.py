@@ -60,6 +60,7 @@ def two_transcripts():
             [
                 ["chr1", 1100, 1200, "+"],
                 ["chr1", 1400, 1600, "+"],
+                ["chr1", 1800, 2000, "+"],
             ],
         ],
     ]
@@ -115,11 +116,11 @@ def test_db_splice_junctions(db, two_transcripts, three_transcripts):
 
     # No filter
     introns = db.get_splice_junctions(chrom="chr1")
-    assert len(introns) == 4
+    assert len(introns) == 5
 
     # Filter, but evidence 1 means get everything
     introns = db.get_splice_junctions(chrom="chr1", ev_count=1, read_count=1)
-    assert len(introns) == 4
+    assert len(introns) == 5
 
     # Strict filter, nothing as a result
     introns = db.get_splice_junctions(chrom="chr1", ev_count=3, read_count=10)
@@ -129,7 +130,7 @@ def test_db_splice_junctions(db, two_transcripts, three_transcripts):
     introns = db.get_splice_junctions(
         chrom="chr1", ev_count=3, read_count=10, keep=["annotation2"]
     )
-    assert len(introns) == 2
+    assert len(introns) == 3
 
     # Filter, but keep annotation1
     introns = db.get_splice_junctions(
@@ -137,11 +138,11 @@ def test_db_splice_junctions(db, two_transcripts, three_transcripts):
     )
     assert len(introns) == 2
 
-    # Filter, but keep annotation1
+    # Filter, but keep annotation1 and annotation2
     introns = db.get_splice_junctions(
         chrom="chr1", ev_count=3, read_count=10, keep=["annotation1", "annotation2"]
     )
-    assert len(introns) == 4
+    assert len(introns) == 5
 
 
 # def test_add_exon(db):
@@ -166,7 +167,7 @@ def test_retrieve_models(db_5t):
     models = sorted(db_5t.get_best_variants([]), key=lambda x: len(x))
     assert 2 == len(models)
     assert 3 == len(models[0])
-    assert 3 == len(models[1])
+    assert 4 == len(models[1])
 
 
 @pytest.fixture
