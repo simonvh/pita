@@ -31,8 +31,9 @@ def load_chrom_data(conn, new, chrom, anno_files, data, index=None):
                     )
                 for tname, source, exons in it:
                     db.add_transcript(
-                        "{0}{1}{2}".format(name, SEP, tname), source, exons
+                        "{0}{1}{2}".format(name, SEP, tname), source, exons, commit=False
                     )
+                    db.session.commit()
                 del fobj
             tabixfile.close()
             del tabixfile

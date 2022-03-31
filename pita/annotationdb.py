@@ -1,7 +1,7 @@
 import os
 import sys
 import logging
-from sqlalchemy import and_, func
+from sqlalchemy import and_, func, or_
 from sqlalchemy import create_engine
 from sqlalchemy.orm import scoped_session, sessionmaker, subqueryload
 from pita.db_backend import (
@@ -19,7 +19,24 @@ from pita.io import exons_to_tabix_bed, tabix_overlap
 from fluff.track import BamTrack
 from tempfile import NamedTemporaryFile
 from genomepy import Genome
+from maxentpy.maxent import score3, score5, load_matrix3, load_matrix5
+
 logger = logging.getLogger("pita")
+matrix5 = load_matrix5()
+matrix3 = load_matrix3()
+
+
+def safe_score5(seq, matrix=None):
+    if "N" in seq.upper():
+        return 0
+    return score5(seq, matrix=matrix)
+
+
+def safe_score3(seq, matrix=None):
+    if "N" in seq.upper():
+        return 0
+    return score3(seq, matrix=matrix)
+
 
 class AnnotationDb(object):
     def __init__(
@@ -189,7 +206,7 @@ class AnnotationDb(object):
             #     [dict(zip(t, row)) for row in data["feature_evidence"]],
             # )
 
-    def add_transcript(self, name, source, exons):
+    def add_transcript(self, name, source, exons, commit=True):
         """
         Add a transcript to the database
         """
@@ -212,30 +229,61 @@ class AnnotationDb(object):
         evidence = get_or_create(self.session, Evidence, name=name, source=source)
 
         seqs = []
+        exon_seqs = []
         for exon in exons:
-            #logger.info("get exon sequence")
-            #logger.info(str(exon))
-            seq = ""
+
             real_seq = ""
+            seq = ""
             if self.genome:
-                seq = ""
-                real_seq = self.genome[chrom][exon[1]:exon[2]]
+                real_seq = self.genome[chrom][exon[1] : exon[2]]
                 if strand == "-":
                     real_seq = real_seq[::-1].complement
                 real_seq = real_seq.seq
 
                 try:
-                    seq = self.genome[chrom][exon[1] - 20: exon[2] + 20]
+                    seq = self.genome[chrom][exon[1] - 20 : exon[2] + 20]
                     if strand == "-":
                         # Reverse complement
                         seq = seq[::-1].complement
                     seq = seq.seq
                 except Exception as e:
                     logger.error(e)
-                seqs.append(seq)
-            #print(f">seq\n{seq}")
-            #print(f">real_seq\n{real_seq}")
 
+            seqs.append(seq)
+            exon_seqs.append(real_seq)
+
+        if self.genome:
+            donor_scores = []
+            acceptor_scores = []
+
+            for i, (start, end) in enumerate(
+                [(e1[2], e2[1]) for e1, e2 in zip(exons[0:-1], exons[1:])]
+            ):
+                if strand == "+":
+                    if len(seqs) > (i + 1) and len(seqs[i]) > 46:
+                        donor_scores.append(
+                            safe_score5(seqs[i][-23:-14], matrix=matrix5)
+                        )
+                    if len(seqs) > (i + 2) and len(seqs[i + 1]) > 46:
+                        acceptor_scores.append(
+                            safe_score3(seqs[i + 1][:23], matrix=matrix3)
+                        )
+                else:
+                    if len(seqs) > (i + 2) and len(seqs[i + 1]) > 46:
+                        donor_scores.append(
+                            safe_score5(seqs[i + 1][-23:-14], matrix=matrix5)
+                        )
+
+                    if len(seqs) > (i + 1) and len(seqs[i]) > 46:
+                        acceptor_scores.append(
+                            safe_score3(seqs[i + 1][:23], matrix=matrix3)
+                        )
+
+            if sum(donor_scores) + sum(acceptor_scores) < 0:
+                self.logger.warning("Skipping %s, splicing not OK!", name)
+                return
+
+        for exon, exon_seq in zip(exons, exon_seqs):
             exon = get_or_create(
                 self.session,
                 Feature,
@@ -244,17 +292,13 @@ class AnnotationDb(object):
                 end=exon[2],
                 strand=strand,
                 ftype="exon",
-                seq=real_seq,
+                seq=exon_seq,
             )
-            #print(exon)
             exon.evidences.append(evidence)
 
-        splice_donors = []
-        splice_acceptors = []
         for i, (start, end) in enumerate(
             [(e1[2], e2[1]) for e1, e2 in zip(exons[0:-1], exons[1:])]
         ):
-            self.logger.debug("%s %s %s %s", chrom, start, end, strand)
             sj = get_or_create(
                 self.session,
                 Feature,
@@ -266,36 +310,7 @@ class AnnotationDb(object):
             )
             sj.evidences.append(evidence)
 
-            if strand == "+":
-                if len(seqs) > (i + 1) and len(seqs[i]) > 46:
-                    splice_donors.append(
-                        ["{}_{}".format(name, i + 1), seqs[i][-23:-14]]
-                    )
-                if len(seqs) > (i + 2) and len(seqs[i + 1]) > 46:
-                    f = ["{}_{}".format(name, i + 1), seqs[i + 1][:23]]
-                    splice_acceptors.append(f)
-            else:
-                if len(seqs) > (i + 2) and len(seqs[i + 1]) > 46:
-                    f = ["{}_{}".format(name, i + 1), seqs[i + 1][-23:-14]]
-                    splice_donors.append(f)
-
-                if len(seqs) > (i + 1) and len(seqs[i]) > 46:
-                    f = ["{}_{}".format(name, i + 1), seqs[i][:23]]
-                    splice_acceptors.append(f)
-        #print("donors")
-        #print(splice_donors)
-        #print("acceptors")
-        #print(splice_acceptors)
-
-        donor_score = get_splice_score(splice_donors, 5)
-        acceptor_score = get_splice_score(splice_acceptors, 3)
-        
-        #print("donor_score", donor_score)
-        #print("acceptor_score", acceptor_score)
-        if donor_score + acceptor_score < 0:
-            self.logger.warning("Skipping %s, splicing not OK!", name)
-            self.session.rollback()
-        else:
+        if commit:
             self.session.commit()
 
     def get_features(
@@ -352,64 +367,44 @@ class AnnotationDb(object):
         )
 
     def get_splice_junctions(
-        self, chrom=None, ev_count=None, read_count=None, max_reads=None, eager=False
+        self,
+        chrom=None,
+        ev_count=None,
+        read_count=None,
+        max_reads=None,
+        keep=None,
+        eager=False,
     ):
+        if keep is None:
+            keep = []
 
         features = []
+
         if ev_count and read_count:
-            # All splices with no read, but more than one evidence source
-            fs = (
+
+            query = (
                 self.session.query(Feature)
                 .filter(Feature.flag.op("IS NOT")(True))
                 .filter(Feature.ftype == "splice_junction")
                 .filter(Feature.chrom == chrom)
-                .outerjoin(FeatureReadCount)
-                .group_by(Feature)
-                .having(func.sum(FeatureReadCount.count) < read_count)
             )
 
-            for splice in fs:
+            for splice in query:
                 self.logger.debug("Considering %s", splice)
-                for evidence in splice.evidences:
-                    self.logger.debug(str(evidence))
-                if len(splice.evidences) >= ev_count:
+
+                total_reads = sum([x.count for x in splice.read_counts])
+                keep_by_evidence = len(
+                    set([e.source for e in splice.evidences]).intersection(set(keep))
+                )
+
+                if (
+                    len(splice.evidences) >= ev_count
+                    or total_reads >= read_count
+                    or keep_by_evidence
+                ):
                     features.append(splice)
                 else:
                     self.logger.debug("not enough evidence for {}".format(splice))
-
-            fs = (
-                self.session.query(Feature)
-                .filter(Feature.flag.op("IS NOT")(True))
-                .filter(Feature.ftype == "splice_junction")
-                .filter(Feature.chrom == chrom)
-                .outerjoin(FeatureReadCount)
-                .group_by(Feature)
-                .having(func.sum(FeatureReadCount.count) is None)
-            )
-
-            for splice in fs:
-                self.logger.debug("Considering %s (no reads)", splice)
-                for evidence in splice.evidences:
-                    self.logger.debug(str(evidence))
-                if len(splice.evidences) >= ev_count:
-                    features.append(splice)
-                else:
-                    self.logger.debug("not enough evidence for {}".format(splice))
-
-            # All splices with more than x reads
-            fs = (
-                self.session.query(Feature)
-                .filter(Feature.flag.op("IS NOT")(True))
-                .filter(Feature.ftype == "splice_junction")
-                .filter(Feature.chrom == chrom)
-                .outerjoin(FeatureReadCount)
-                .group_by(Feature)
-                .having(func.sum(FeatureReadCount.count) >= read_count)
-            )
-            for f in fs:
-                self.logger.debug("Considering %s (reads)", f)
-                features.append(f)
-            # features += [f for f in fs]
 
         elif max_reads:
             fs = (

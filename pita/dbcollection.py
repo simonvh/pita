@@ -70,15 +70,19 @@ class DbCollection(object):
             prune = {}
         min_reads = prune.get("introns", {}).get("min_reads", None)
         ev = prune.get("introns", {}).get("evidence", None)
+        keep = prune.get("keep", [])
+
         if min_reads:
             self.logger.debug("Minimum reads for splice junction: %s", min_reads)
         if ev:
             self.logger.debug("Minimum evidence for splice junction: %s", ev)
+        if len(keep) > 0:
+            self.logger.debug(f"Keeping all splice junctions from: {','.join(keep)}")
 
         # Load splice junctions
         n = 0
         for junction in self.db.get_splice_junctions(
-            chrom, ev_count=ev, read_count=min_reads, eager=True
+            chrom, ev_count=ev, read_count=min_reads, eager=True, keep=keep
         ):
             n += 1
             self.add_feature(junction, weights)
@@ -172,7 +176,7 @@ class DbCollection(object):
                     continue
                 t = sink
                 best_variant = []
-                
+
                 while pred[t]:
                     best_variant.append(pred[t][0])
                     t = pred[t][0]
@@ -254,6 +258,8 @@ class DbCollection(object):
                 if idtype == "splice":
                     f = self._nodes_to_splice_junction(n1, n2)
                     id_value = feature_stats.get(identifier, 0)
+                elif idtype == "evidence":
+                    id_value = len(feature.evidences)
             d[identifier] = id_value
             if id_value > self.max_id_value[identifier]:
                 self.max_id_value[identifier] = id_value

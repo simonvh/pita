@@ -14,8 +14,9 @@ dependencies:
 - htseq
 - sqlalchemy
 - pytest
-- maxentscan
+- maxentpy
 - rpy2
 - r-changepoint
 - samtools
 - stringtie
+
