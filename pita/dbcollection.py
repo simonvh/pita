@@ -249,8 +249,8 @@ class DbCollection(object):
                 elif idtype == "orf":
                     start, end = longest_orf(feature.seq)
                     id_value = end - start
-                elif idtype == "splice":
-                    # intron feature
+                elif idtype in ["splice", "first"]:
+                    # intron and source features
                     pass
                 else:
                     raise ValueError(f"Unknown type: {idtype}")
@@ -260,6 +260,10 @@ class DbCollection(object):
                     id_value = feature_stats.get(identifier, 0)
                 elif idtype == "evidence":
                     id_value = len(feature.evidences)
+                elif idtype in ["all", "length", "orf", "rpkm", "first"]:
+                    pass
+                else:
+                    raise ValueError(f"Unknown type: {idtype}")
             d[identifier] = id_value
             if id_value > self.max_id_value[identifier]:
                 self.max_id_value[identifier] = id_value
